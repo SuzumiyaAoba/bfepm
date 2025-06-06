@@ -1,6 +1,6 @@
-# Nix Development Environment for EPM
+# Nix Development Environment for bfepm
 
-This document explains how to set up and use the Nix-based development environment for EPM.
+This document explains how to set up and use the Nix-based development environment for bfepm.
 
 ## Prerequisites
 
@@ -31,8 +31,8 @@ This document explains how to set up and use the Nix-based development environme
 
 ```bash
 # Clone the repository
-git clone https://github.com/SuzumiyaAoba/epm.git
-cd epm
+git clone https://github.com/SuzumiyaAoba/bfepm.git
+cd bfepm
 
 # Enter development environment
 nix develop
@@ -102,9 +102,9 @@ Once in the development environment, you can use:
 ### Development Scripts
 
 ```bash
-epm-dev     # Show development information and available commands
-epm-test    # Run the test suite
-epm-demo    # Start interactive demo environment
+bfepm-dev   # Show development information and available commands
+bfepm-test  # Run the test suite
+bfepm-demo  # Start interactive demo environment
 ```
 
 ### Standard Make Commands
@@ -120,11 +120,11 @@ make check      # Run all checks
 ### Direct Emacs Commands
 
 ```bash
-# Run EPM demo with sample configuration
+# Run bfepm demo with sample configuration
 emacs -Q -L . -l sample/demo-init.el
 
-# Run EPM directly
-emacs -Q -L . -l epm.el
+# Run bfepm directly
+emacs -Q -L . -l bfepm.el
 
 # Run tests directly
 emacs -batch -L . -L test -l buttercup -f buttercup-run-discover test/
@@ -183,7 +183,7 @@ nix profile install
 
 The built package includes:
 - Compiled Emacs Lisp files
-- Wrapper script `epm-emacs` for easy execution
+- Wrapper script `bfepm-emacs` for easy execution
 - All required dependencies
 
 ## Advanced Usage

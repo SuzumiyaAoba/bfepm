@@ -1,4 +1,4 @@
-# EPM Implementation Plan
+# bfepm Implementation Plan
 
 ## Development Approach
 
@@ -24,27 +24,27 @@
 
 **1. Project Structure Setup**
 ```
-epm/
-├── epm.el                   # Main entry point
-├── epm-core.el             # Core functionality
-├── epm-config.el           # Configuration management
-├── epm-package.el          # Package management
-├── epm-utils.el            # Utilities
+bfepm/
+├── bfepm.el                 # Main entry point
+├── bfepm-core.el           # Core functionality
+├── bfepm-config.el         # Configuration management
+├── bfepm-package.el        # Package management
+├── bfepm-utils.el          # Utilities
 ├── test/
-│   ├── epm-test.el
-│   ├── epm-config-test.el
-│   └── epm-package-test.el
+│   ├── bfepm-test.el
+│   ├── bfepm-config-test.el
+│   └── bfepm-package-test.el
 ├── Cask                    # Dependencies definition
 └── Makefile               # Build scripts
 ```
 
 **2. Basic Data Structure Definition**
 ```elisp
-;; epm-core.el
-(cl-defstruct epm-package
+;; bfepm-core.el
+(cl-defstruct bfepm-package
   name version source dependencies config status)
 
-(cl-defstruct epm-config
+(cl-defstruct bfepm-config
   packages sources global-settings)
 ```
 
@@ -65,13 +65,13 @@ epm/
 
 **1. Package Installation Functionality**
 ```elisp
-(defun epm-package-install (package-spec)
+(defun bfepm-package-install (package-spec)
   "Install package")
 
-(defun epm-package-download (package source)
+(defun bfepm-package-download (package source)
   "Download package")
 
-(defun epm-package-extract (archive target)
+(defun bfepm-package-extract (archive target)
   "Extract archive")
 ```
 
@@ -82,9 +82,9 @@ epm/
 
 **3. Basic CLI**
 ```bash
-epm install company
-epm list
-epm remove company
+bfepm install company
+bfepm list
+bfepm remove company
 ```
 
 #### Deliverables
@@ -99,10 +99,10 @@ epm remove company
 
 **1. Lock File Generation**
 ```elisp
-(defun epm-lock-generate (packages)
+(defun bfepm-lock-generate (packages)
   "Generate lock file from installed packages")
 
-(defun epm-lock-read (lock-file)
+(defun bfepm-lock-read (lock-file)
   "Read lock file")
 ```
 
@@ -129,13 +129,13 @@ epm remove company
 
 **1. Profile Management**
 ```elisp
-(cl-defstruct epm-profile
+(cl-defstruct bfepm-profile
   name includes packages config active)
 
-(defun epm-profile-switch (profile-name)
+(defun bfepm-profile-switch (profile-name)
   "Switch profile")
 
-(defun epm-profile-create (name base-profile)
+(defun bfepm-profile-create (name base-profile)
   "Create new profile")
 ```
 
@@ -155,10 +155,10 @@ epm remove company
 
 **1. Autoload Functionality**
 ```elisp
-(defun epm-autoload-setup (package triggers)
+(defun bfepm-autoload-setup (package triggers)
   "Setup automatic package loading")
 
-(defun epm-defer-config (package config)
+(defun bfepm-defer-config (package config)
   "Defer configuration application")
 ```
 
@@ -178,18 +178,18 @@ epm remove company
 
 **1. Advanced CLI**
 ```bash
-epm search <query>
-epm info <package>
-epm update [package]
-epm profile list
-epm profile switch <name>
+bfepm search <query>
+bfepm info <package>
+bfepm update [package]
+bfepm profile list
+bfepm profile switch <name>
 ```
 
 **2. Diagnostic Functionality**
 ```bash
-epm doctor          # Environment check
-epm deps <package>  # Show dependencies
-epm conflicts       # Detect conflicts
+bfepm doctor          # Environment check
+bfepm deps <package>  # Show dependencies
+bfepm conflicts       # Detect conflicts
 ```
 
 #### Deliverables
@@ -210,10 +210,10 @@ epm conflicts       # Detect conflicts
 
 **1. Plugin API**
 ```elisp
-(defun epm-plugin-register (name hooks)
+(defun bfepm-plugin-register (name hooks)
   "Register plugin")
 
-(defun epm-plugin-call-hook (hook-name &rest args)
+(defun bfepm-plugin-call-hook (hook-name &rest args)
   "Execute plugin hook")
 ```
 
@@ -233,10 +233,10 @@ epm conflicts       # Detect conflicts
 
 **1. Configuration Templates**
 ```elisp
-(defun epm-template-apply (template-name)
+(defun bfepm-template-apply (template-name)
   "Apply template")
 
-(defun epm-template-create (name config)
+(defun bfepm-template-create (name config)
   "Create new template")
 ```
 
@@ -419,4 +419,4 @@ jobs:
 - PR response time: within 48 hours
 - Active contributors: 5+ people
 
-Following this implementation plan, we will develop EPM systematically and reliably.
+Following this implementation plan, we will develop bfepm systematically and reliably.

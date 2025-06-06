@@ -39,35 +39,35 @@ cask exec emacs -batch -L . -f batch-byte-compile *.el
 
 ## Architecture Overview
 
-EPM is an Emacs Lisp package manager with a modular, layered architecture:
+bfepm is an Emacs Lisp package manager with a modular, layered architecture:
 
 ### Core Components
-- **epm.el**: Main entry point with interactive commands
-- **epm-core.el**: Core functionality, data structures, and initialization
-- **epm-config.el**: TOML configuration file parsing and validation
-- **epm-package.el**: Package installation, removal, and management
-- **epm-utils.el**: Utility functions for downloads, version comparison, and file operations
-- **epm-lock.el**: Lock file generation and verification for reproducible installs
+- **bfepm.el**: Main entry point with interactive commands
+- **bfepm-core.el**: Core functionality, data structures, and initialization
+- **bfepm-config.el**: TOML configuration file parsing and validation
+- **bfepm-package.el**: Package installation, removal, and management
+- **bfepm-utils.el**: Utility functions for downloads, version comparison, and file operations
+- **bfepm-lock.el**: Lock file generation and verification for reproducible installs
 
 ### Data Structures
-- `epm-package`: Represents a package with name, version, source, dependencies, config, and status
-- `epm-config`: Configuration structure containing packages, sources, profiles, and global settings
-- `epm-source`: Package source definition with URL, type, and priority
-- `epm-lock`: Lock file structure ensuring deterministic package versions
+- `bfepm-package`: Represents a package with name, version, source, dependencies, config, and status
+- `bfepm-config`: Configuration structure containing packages, sources, profiles, and global settings
+- `bfepm-source`: Package source definition with URL, type, and priority
+- `bfepm-lock`: Lock file structure ensuring deterministic package versions
 
 ### File Organization
 ```
 ~/.emacs.d/
-├── epm.toml          # Main configuration
-├── epm.lock          # Version lock file
-└── epm/
+├── bfepm.toml        # Main configuration
+├── bfepm.lock        # Version lock file
+└── bfepm/
     ├── packages/     # Installed packages
     ├── cache/        # Download and metadata cache
     └── profiles/     # Profile configurations
 ```
 
 ### Configuration Format
-EPM uses TOML for configuration with support for:
+bfepm uses TOML for configuration with support for:
 - Package specifications with version constraints
 - Multiple package sources (MELPA, GNU ELPA, Git repos)
 - Profile-based configuration management
@@ -86,8 +86,8 @@ EPM uses TOML for configuration with support for:
 - **Mock-friendly**: Utilities designed for easy testing
 
 When working with this codebase:
-- Follow existing naming conventions (epm- prefix for all functions)
+- Follow existing naming conventions (bfepm- prefix for all functions)
 - Use cl-defstruct for data structures
-- Include comprehensive error handling with epm-utils-error
+- Include comprehensive error handling with bfepm-utils-error
 - Add docstrings to all public functions
 - Write tests for new functionality using buttercup

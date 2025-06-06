@@ -1,6 +1,6 @@
-# EPM - Emacs Package Manager
+# bfepm - Better Fast Emacs Package Manager
 
-EPM is a package manager for Emacs that provides simple and reliable package installation.
+bfepm is a package manager for Emacs that provides simple and reliable package installation.
 
 ## Features
 
@@ -14,18 +14,18 @@ EPM is a package manager for Emacs that provides simple and reliable package ins
 
 ### Dependencies
 
-EPM requires:
+bfepm requires:
 
 - Emacs 26.1 or later
 - toml.el (optional, for full TOML parsing - automatically falls back to minimal parser if not available)
 
-**Note**: EPM works without any external dependencies. If toml.el is not available, EPM uses its built-in minimal configuration system.
+**Note**: bfepm works without any external dependencies. If toml.el is not available, bfepm uses its built-in minimal configuration system.
 
 ### Manual Installation
 
 ```bash
-git clone https://github.com/SuzumiyaAoba/epm.git
-cd epm
+git clone https://github.com/SuzumiyaAoba/bfepm.git
+cd bfepm
 make install
 ```
 
@@ -35,12 +35,12 @@ If you have [Nix](https://nixos.org/) installed with flakes enabled:
 
 ```bash
 # Clone and enter development environment
-git clone https://github.com/SuzumiyaAoba/epm.git
-cd epm
+git clone https://github.com/SuzumiyaAoba/bfepm.git
+cd bfepm
 nix develop
 
 # Or run directly
-nix run github:SuzumiyaAoba/epm#demo
+nix run github:SuzumiyaAoba/bfepm#demo
 ```
 
 See [Nix Setup Guide](docs/nix-setup.md) for detailed instructions.
@@ -52,17 +52,17 @@ See [Nix Setup Guide](docs/nix-setup.md) for detailed instructions.
 Add the following to your Emacs configuration file (`init.el`):
 
 ```elisp
-(add-to-list 'load-path "/path/to/epm")
-(require 'epm)
-(epm-init)
+(add-to-list 'load-path "/path/to/bfepm")
+(require 'bfepm)
+(bfepm-init)
 ```
 
 ### Configuration File
 
-EPM uses `~/.emacs.d/epm.toml` as its configuration file. See `sample/epm.toml` for a complete example with 25 popular packages.
+bfepm uses `~/.emacs.d/bfepm.toml` as its configuration file. See `sample/bfepm.toml` for a complete example with 25 popular packages.
 
 ```toml
-# Example epm.toml
+# Example bfepm.toml
 
 [meta]
 version = "1.0.0"
@@ -87,11 +87,11 @@ which-key = "latest"
 
 | Command | Description |
 |---------|-------------|
-| `M-x epm-install` | Install a package |
-| `M-x epm-remove` | Remove a package |
-| `M-x epm-update` | Update packages (all packages if no argument) |
-| `M-x epm-list` | List installed packages |
-| `M-x epm-init` | Initialize EPM |
+| `M-x bfepm-install` | Install a package |
+| `M-x bfepm-remove` | Remove a package |
+| `M-x bfepm-update` | Update packages (all packages if no argument) |
+| `M-x bfepm-list` | List installed packages |
+| `M-x bfepm-init` | Initialize bfepm |
 
 ### Package Management
 
@@ -99,36 +99,36 @@ which-key = "latest"
 
 ```elisp
 ;; Interactive
-M-x epm-install RET company RET
+M-x bfepm-install RET company RET
 
 ;; Programmatically
-(epm-install "company")
+(bfepm-install "company")
 ```
 
 #### Removing Packages
 
 ```elisp
 ;; Interactive
-M-x epm-remove RET company RET
+M-x bfepm-remove RET company RET
 
 ;; Programmatically
-(epm-remove "company")
+(bfepm-remove "company")
 ```
 
 #### Updating Packages
 
 ```elisp
 ;; Update specific package
-M-x epm-update RET company RET
+M-x bfepm-update RET company RET
 
 ;; Update all packages
-M-x epm-update RET RET
+M-x bfepm-update RET RET
 ```
 
 #### Listing Installed Packages
 
 ```elisp
-M-x epm-list
+M-x bfepm-list
 ```
 
 ### Lock File Operations
@@ -136,19 +136,19 @@ M-x epm-list
 #### Generate Lock File
 
 ```elisp
-(epm-lock-generate)
+(bfepm-lock-generate)
 ```
 
 #### Install from Lock File
 
 ```elisp
-(epm-lock-install)
+(bfepm-lock-install)
 ```
 
 #### Verify Lock File
 
 ```elisp
-(epm-lock-verify)
+(bfepm-lock-verify)
 ```
 
 ## Configuration File Details
@@ -169,7 +169,7 @@ which-key = "latest"           # Popular utility package
 
 #### Version Specifications for MELPA Packages
 
-EPM supports MELPA's date-based versioning system:
+bfepm supports MELPA's date-based versioning system:
 
 ```toml
 [packages]
@@ -219,13 +219,13 @@ backup-before-update = true # Backup before updates
 
 ## File Structure
 
-EPM uses the following directory structure:
+bfepm uses the following directory structure:
 
 ```
 ~/.emacs.d/
-├── epm.toml              # Main configuration file
-├── epm.lock              # Lock file
-└── epm/
+├── bfepm.toml            # Main configuration file
+├── bfepm.lock            # Lock file
+└── bfepm/
     ├── packages/         # Installed packages
     │   ├── company/
     │   ├── magit/
@@ -240,7 +240,7 @@ EPM uses the following directory structure:
         └── error.log
 ```
 
-**Sample Files**: The repository includes `sample/epm.toml` with 25 popular packages and `sample/demo-init.el` for testing.
+**Sample Files**: The repository includes `sample/bfepm.toml` with 25 popular packages and `sample/demo-init.el` for testing.
 
 ## Quick Demo
 
@@ -248,11 +248,11 @@ EPM uses the following directory structure:
 
 ```bash
 # Interactive demo with sample configurations
-nix run github:SuzumiyaAoba/epm#demo
+nix run github:SuzumiyaAoba/bfepm#demo
 
 # Or locally
-git clone https://github.com/SuzumiyaAoba/epm.git
-cd epm
+git clone https://github.com/SuzumiyaAoba/bfepm.git
+cd bfepm
 nix run .#demo
 ```
 
@@ -260,8 +260,8 @@ nix run .#demo
 
 ```bash
 # Clone and test
-git clone https://github.com/SuzumiyaAoba/epm.git
-cd epm
+git clone https://github.com/SuzumiyaAoba/bfepm.git
+cd bfepm
 
 # Run sample test script
 ./sample/test-script.sh
@@ -269,7 +269,7 @@ cd epm
 # Or start Emacs with demo configuration
 emacs -Q -L . -l sample/demo-init.el
 # Then use: C-c e h (help), C-c e c (show config), C-c e M (mock install), C-c e l (list packages)
-# Demo uses sample/epm.toml with 25 popular packages
+# Demo uses sample/bfepm.toml with 25 popular packages
 ```
 
 ## Development
@@ -316,7 +316,7 @@ nix run .#test
 
 ### Dependency Management
 
-EPM uses Cask for managing development dependencies:
+bfepm uses Cask for managing development dependencies:
 
 ```bash
 # Install dependencies with Cask
@@ -328,7 +328,7 @@ cask exec buttercup -L .
 
 ## Version Specifications
 
-EPM supports the following version specification formats:
+bfepm supports the following version specification formats:
 
 | Format | Description | Example |
 |--------|-------------|---------|
@@ -339,13 +339,13 @@ EPM supports the following version specification formats:
 
 ## Lock Files
 
-The lock file (`epm.lock`) records the exact versions and checksums of installed packages:
+The lock file (`bfepm.lock`) records the exact versions and checksums of installed packages:
 
 ```toml
 [meta]
 version = "1.0.0"
 generated = "2024-01-15T12:30:00Z"
-epm-version = "0.1.0"
+bfepm-version = "0.1.0"
 
 [packages.company]
 version = "0.9.13"
@@ -365,40 +365,40 @@ checksum = "sha256:def456..."
 
 #### TOML Configuration Issues
 
-If you see warnings about "epm-config module not loaded":
+If you see warnings about "bfepm-config module not loaded":
 
 1. **Full TOML Support**: Install `toml.el` package for complete TOML parsing
 2. **Minimal Mode**: EPM automatically falls back to minimal configuration parser
-3. **Check Status**: Use `M-x epm-demo-show-config` in demo mode to verify configuration loading
+3. **Check Status**: Use `M-x bfepm-demo-show-config` in demo mode to verify configuration loading
 
 ```elisp
 ;; Check which configuration module is loaded
-(featurep 'epm-config)         ; Full TOML support
-(featurep 'epm-config-minimal) ; Minimal parser (fallback)
+(featurep 'bfepm-config)         ; Full TOML support
+(featurep 'bfepm-config-minimal) ; Minimal parser (fallback)
 ```
 
 #### Package Installation Fails
 
 1. Check network connectivity
 2. Verify package source URLs are correct
-3. Check log files (`~/.emacs.d/epm/logs/error.log`)
+3. Check log files (`~/.emacs.d/bfepm/logs/error.log`)
 4. Test with demo mode: `emacs -Q -L . -l sample/demo-init.el`
 
 #### Configuration File Issues
 
 ```elisp
 ;; Check configuration status
-(epm-demo-show-config)
+(bfepm-demo-show-config)
 
 ;; Verify configuration file exists
-(file-exists-p epm-config-file)
+(file-exists-p bfepm-config-file)
 ```
 
 #### Dependency Conflicts
 
 ```elisp
 ;; Check dependencies
-(epm-package-info "package-name")
+(bfepm-package-info "package-name")
 ```
 
 #### Demo Mode for Testing
@@ -427,46 +427,46 @@ The current version (v0.1.0) has the following limitations:
 
 ### Core Functions
 
-#### `epm-install (package-spec)`
+#### `bfepm-install (package-spec)`
 Install a package specified by PACKAGE-SPEC.
 
-#### `epm-remove (package-name)`
+#### `bfepm-remove (package-name)`
 Remove the specified package.
 
-#### `epm-update (&optional package-name)`
+#### `bfepm-update (&optional package-name)`
 Update a specific package or all packages if no argument is provided.
 
-#### `epm-list ()`
+#### `bfepm-list ()`
 List all installed packages.
 
-#### `epm-init ()`
-Initialize EPM in the current Emacs session.
+#### `bfepm-init ()`
+Initialize bfepm in the current Emacs session.
 
 ### Configuration Functions
 
-#### `epm-config-load (file)`
-Load EPM configuration from a TOML file.
+#### `bfepm-config-load (file)`
+Load bfepm configuration from a TOML file.
 
-#### `epm-config-validate (config)`
-Validate EPM configuration structure.
+#### `bfepm-config-validate (config)`
+Validate bfepm configuration structure.
 
 ### Lock File Functions
 
-#### `epm-lock-generate ()`
+#### `bfepm-lock-generate ()`
 Generate a lock file from currently installed packages.
 
-#### `epm-lock-verify ()`
+#### `bfepm-lock-verify ()`
 Verify that installed packages match the lock file.
 
-#### `epm-lock-install ()`
+#### `bfepm-lock-install ()`
 Install packages from the lock file.
 
 ### Utility Functions
 
-#### `epm-utils-version-compare (v1 v2)`
+#### `bfepm-utils-version-compare (v1 v2)`
 Compare two version strings.
 
-#### `epm-utils-version-satisfies-p (version requirement)`
+#### `bfepm-utils-version-satisfies-p (version requirement)`
 Check if a version satisfies a requirement specification.
 
 ## Contributing
@@ -482,8 +482,8 @@ Bug reports and feature requests are welcome via GitHub Issues.
 
 ### Coding Guidelines
 
-- Use the `epm-` prefix for all public functions
-- Include comprehensive error handling with `epm-utils-error`
+- Use the `bfepm-` prefix for all public functions
+- Include comprehensive error handling with `bfepm-utils-error`
 - Add docstrings to all public functions
 - Write tests for new functionality using buttercup
 - Follow existing naming conventions

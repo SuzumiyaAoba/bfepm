@@ -1,8 +1,8 @@
-# EPM: Emacs Package Manager
+# bfepm: Better Fast Emacs Package Manager
 
 ## Project Overview
 
-EPM is a next-generation package manager for Emacs that solves the challenges of existing package management tools, providing a simple, fast, and deterministic package management experience.
+bfepm is a next-generation package manager for Emacs that solves the challenges of existing package management tools, providing a simple, fast, and deterministic package management experience.
 
 ## Background and Challenges
 
@@ -32,7 +32,7 @@ EPM is a next-generation package manager for Emacs that solves the challenges of
 
 ### Vision: "Simple, Fast, Deterministic"
 
-EPM is designed based on three pillars:
+bfepm is designed based on three pillars:
 
 #### 1. Simple
 - **Single Configuration File**: Manage all packages and settings in one place
@@ -191,6 +191,6 @@ company-minimum-prefix-length = 2
 
 ## Conclusion
 
-EPM aims to become the de facto standard for Emacs package management by focusing on simplicity, performance, and reliability. Through a declarative configuration approach and modern development practices, we will provide an experience that satisfies both beginners and advanced users.
+bfepm aims to become the de facto standard for Emacs package management by focusing on simplicity, performance, and reliability. Through a declarative configuration approach and modern development practices, we will provide an experience that satisfies both beginners and advanced users.
 
 The project's success will be measured not just by technical achievements, but by how much it improves the daily workflow of Emacs users worldwide.

@@ -1,4 +1,4 @@
-# EPM Architecture Design
+# bfepm Architecture Design
 
 ## Overall System Architecture
 
@@ -7,7 +7,7 @@
 │                     User Interface Layer                    │
 ├─────────────────┬─────────────────┬─────────────────────────┤
 │   Emacs Lisp    │   CLI Tool      │    Web Interface        │
-│   Interactive   │   (epm command) │    (Optional)           │
+│   Interactive   │   (bfepm command) │    (Optional)           │
 │   Functions     │                 │                         │
 └─────────────────┴─────────────────┴─────────────────────────┘
                                 │
@@ -38,7 +38,7 @@
 ├─────────────────┬─────────────────┬─────────────────────────┤
 │  File System    │   Registry      │     Lock File           │
 │                 │   (Sources)     │                         │
-│ • packages/     │ • melpa         │ • epm.lock              │
+│ • packages/     │ • melpa         │ • bfepm.lock              │
 │ • cache/        │ • gnu-elpa      │ • versions              │
 │ • profiles/     │ • git repos     │ • checksums             │
 └─────────────────┴─────────────────┴─────────────────────────┘
@@ -49,28 +49,28 @@
 ### 1. Configuration Manager
 
 ```elisp
-;; epm-config.el
-(defstruct epm-config
+;; bfepm-config.el
+(defstruct bfepm-config
   packages          ; Package list
   profiles         ; Profile definitions
   sources          ; Package sources
   global-settings) ; Global settings
 
-(defun epm-config-load (file)
-  "Load configuration file and return epm-config structure")
+(defun bfepm-config-load (file)
+  "Load configuration file and return bfepm-config structure")
 
-(defun epm-config-validate (config)
+(defun bfepm-config-validate (config)
   "Validate configuration validity")
 
-(defun epm-config-merge (configs)
+(defun bfepm-config-merge (configs)
   "Merge multiple configurations")
 ```
 
 ### 2. Package Manager
 
 ```elisp
-;; epm-package.el
-(defstruct epm-package
+;; bfepm-package.el
+(defstruct bfepm-package
   name             ; Package name
   version          ; Version
   source           ; Source information
@@ -78,87 +78,87 @@
   config           ; Package configuration
   status)          ; Installation status
 
-(defun epm-package-install (package-spec)
+(defun bfepm-package-install (package-spec)
   "Install package")
 
-(defun epm-package-update (package-name &optional version)
+(defun bfepm-package-update (package-name &optional version)
   "Update package")
 
-(defun epm-package-remove (package-name)
+(defun bfepm-package-remove (package-name)
   "Remove package")
 
-(defun epm-package-list (&optional filter)
+(defun bfepm-package-list (&optional filter)
   "List installed packages")
 ```
 
 ### 3. Dependency Resolver
 
 ```elisp
-;; epm-deps.el
-(defstruct epm-dependency-graph
+;; bfepm-deps.el
+(defstruct bfepm-dependency-graph
   nodes            ; Package nodes
   edges            ; Dependency edges
   resolved)        ; Resolved order
 
-(defun epm-deps-resolve (packages)
+(defun bfepm-deps-resolve (packages)
   "Resolve dependencies and determine installation order")
 
-(defun epm-deps-check-conflicts (packages)
+(defun bfepm-deps-check-conflicts (packages)
   "Check conflicts between packages")
 
-(defun epm-deps-generate-lock (resolved-packages)
+(defun bfepm-deps-generate-lock (resolved-packages)
   "Generate lock file")
 ```
 
 ### 4. Profile Manager
 
 ```elisp
-;; epm-profile.el
-(defstruct epm-profile
+;; bfepm-profile.el
+(defstruct bfepm-profile
   name             ; Profile name
   includes         ; Inherited profiles
   packages         ; Package list
   config           ; Profile-specific configuration
   active)          ; Active status
 
-(defun epm-profile-switch (profile-name)
+(defun bfepm-profile-switch (profile-name)
   "Switch profile")
 
-(defun epm-profile-create (name &optional base-profile)
+(defun bfepm-profile-create (name &optional base-profile)
   "Create new profile")
 
-(defun epm-profile-list ()
+(defun bfepm-profile-list ()
   "List available profiles")
 ```
 
 ### 5. Download Manager
 
 ```elisp
-;; epm-download.el
-(defun epm-download-package (package source)
+;; bfepm-download.el
+(defun bfepm-download-package (package source)
   "Download package (asynchronous)")
 
-(defun epm-download-verify (package checksum)
+(defun bfepm-download-verify (package checksum)
   "Verify integrity of downloaded package")
 
-(defun epm-download-extract (archive target-dir)
+(defun bfepm-download-extract (archive target-dir)
   "Extract archive")
 ```
 
 ### 6. Cache Manager
 
 ```elisp
-;; epm-cache.el
-(defun epm-cache-get (key)
+;; bfepm-cache.el
+(defun bfepm-cache-get (key)
   "Get value from cache")
 
-(defun epm-cache-set (key value &optional ttl)
+(defun bfepm-cache-set (key value &optional ttl)
   "Save value to cache")
 
-(defun epm-cache-invalidate (pattern)
+(defun bfepm-cache-invalidate (pattern)
   "Invalidate cache")
 
-(defun epm-cache-cleanup ()
+(defun bfepm-cache-cleanup ()
   "Remove expired cache")
 ```
 
@@ -166,9 +166,9 @@
 
 ```
 ~/.emacs.d/
-├── epm.toml                   # Main configuration file
-├── epm.lock                   # Lock file
-├── epm/
+├── bfepm.toml                   # Main configuration file
+├── bfepm.lock                   # Lock file
+├── bfepm/
 │   ├── packages/              # Installed packages
 │   │   ├── company/
 │   │   ├── magit/
@@ -189,7 +189,7 @@
 
 ## Configuration File Specification
 
-### epm.toml
+### bfepm.toml
 
 ```toml
 [meta]
@@ -239,13 +239,13 @@ startup-timeout = 30
 backup-before-update = true
 ```
 
-### epm.lock
+### bfepm.lock
 
 ```toml
 [meta]
 version = "1.0.0"
 generated = "2024-01-15T12:30:00Z"
-epm-version = "0.1.0"
+bfepm-version = "0.1.0"
 
 [packages.company]
 version = "0.9.13"
@@ -269,35 +269,35 @@ warnings = []
 ### Package Installation Flow
 
 ```
-epm-package-install
+bfepm-package-install
     ↓
-epm-config-validate
+bfepm-config-validate
     ↓
-epm-deps-resolve
+bfepm-deps-resolve
     ↓
-epm-download-package (async)
+bfepm-download-package (async)
     ↓
-epm-download-verify
+bfepm-download-verify
     ↓
-epm-download-extract
+bfepm-download-extract
     ↓
-epm-package-configure
+bfepm-package-configure
     ↓
-epm-deps-generate-lock
+bfepm-deps-generate-lock
 ```
 
 ### Profile Switching Flow
 
 ```
-epm-profile-switch
+bfepm-profile-switch
     ↓
-epm-profile-deactivate-current
+bfepm-profile-deactivate-current
     ↓
-epm-config-merge (new profile)
+bfepm-config-merge (new profile)
     ↓
-epm-package-sync
+bfepm-package-sync
     ↓
-epm-profile-activate
+bfepm-profile-activate
 ```
 
 ## Concurrency Strategy
@@ -305,23 +305,23 @@ epm-profile-activate
 ### Asynchronous Downloads
 
 ```elisp
-(defun epm-download-packages-async (packages callback)
+(defun bfepm-download-packages-async (packages callback)
   "Download multiple packages in parallel"
-  (let ((futures (mapcar #'epm-download-package-future packages)))
-    (epm-async-all futures callback)))
+  (let ((futures (mapcar #'bfepm-download-package-future packages)))
+    (bfepm-async-all futures callback)))
 ```
 
 ### Promise-based API
 
 ```elisp
-(defun epm-package-install-async (package-spec)
+(defun bfepm-package-install-async (package-spec)
   "Asynchronous package installation"
-  (epm-promise-new
+  (bfepm-promise-new
    (lambda (resolve reject)
-     (epm-async-run
+     (bfepm-async-run
       (lambda ()
         (condition-case err
-            (resolve (epm-package-install-sync package-spec))
+            (resolve (bfepm-package-install-sync package-spec))
           (error (reject err))))))))
 ```
 
@@ -337,13 +337,13 @@ epm-profile-activate
 ### Recovery Strategies
 
 ```elisp
-(defun epm-error-recovery (error-type error-data)
+(defun bfepm-error-recovery (error-type error-data)
   "Recovery processing based on error type"
   (pcase error-type
-    ('network-error (epm-retry-with-backoff error-data))
-    ('dependency-conflict (epm-suggest-resolution error-data))
-    ('installation-error (epm-rollback-changes error-data))
-    (_ (epm-log-error error-data))))
+    ('network-error (bfepm-retry-with-backoff error-data))
+    ('dependency-conflict (bfepm-suggest-resolution error-data))
+    ('installation-error (bfepm-rollback-changes error-data))
+    (_ (bfepm-log-error error-data))))
 ```
 
 ## Security Considerations
@@ -351,17 +351,17 @@ epm-profile-activate
 ### Package Verification
 
 ```elisp
-(defun epm-verify-package-signature (package signature)
+(defun bfepm-verify-package-signature (package signature)
   "Verify package digital signature")
 
-(defun epm-check-package-permissions (package)
+(defun bfepm-check-package-permissions (package)
   "Check permissions required by package")
 ```
 
 ### Sandbox Execution
 
 ```elisp
-(defun epm-sandbox-eval (code)
+(defun bfepm-sandbox-eval (code)
   "Execute code in restricted environment")
 ```
 
@@ -370,10 +370,10 @@ epm-profile-activate
 ### Lazy Loading Strategy
 
 ```elisp
-(defun epm-autoload-package (package trigger)
+(defun bfepm-autoload-package (package trigger)
   "Auto-load package on specified trigger")
 
-(defun epm-defer-package-config (package config)
+(defun bfepm-defer-package-config (package config)
   "Defer application of package configuration")
 ```
 
