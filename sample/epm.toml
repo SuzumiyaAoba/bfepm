@@ -1,0 +1,49 @@
+# EPM Configuration
+# Package management configuration for EPM
+
+[meta]
+version = "1.0.0"
+description = "EPM package management configuration"
+
+[sources]
+melpa = { url = "https://melpa.org/packages/", priority = 10 }
+gnu = { url = "https://elpa.gnu.org/packages/", priority = 5 }
+melpa-stable = { url = "https://stable.melpa.org/packages/", priority = 7 }
+
+[packages]
+# Core completion framework (with version constraints)
+company = "latest"
+vertico = "^20250601"  # Compatible version
+consult = "~20250520.1200"  # Patch level
+marginalia = "20250515.800"  # Exact version
+embark = "latest"
+orderless = "^20240101"  # Compatible from 2024
+
+# Version control
+magit = "latest"
+
+# UI enhancements
+which-key = "20240101.1000"  # Specific stable version
+doom-themes = "^20240301"  # Compatible from March 2024
+
+# Development tools
+projectile = "latest"
+lsp-mode = "~20250401.1500"  # Recent patch level
+flycheck = "20240201.1200"  # Specific version
+yasnippet = "latest"
+
+# Alternative completion frameworks
+helm = "^20240101"  # Compatible version
+ivy = "20231201.900"  # Older stable version
+
+# Additional useful packages
+org = "latest"
+use-package = "latest"
+evil = "^20240301"  # For Vim users
+treemacs = "latest"
+dashboard = "latest"
+rainbow-delimiters = "latest"
+smartparens = "latest"
+expand-region = "latest"
+multiple-cursors = "latest"
+ace-window = "latest"
