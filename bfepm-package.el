@@ -85,30 +85,29 @@ or a bfepm-package structure."
                    (t package-spec)))
          (config (bfepm-core-get-config)))
     
-    (bfepm-utils-message "Installing package: %s" (bfepm-package-name package))
-    
     ;; Check if already installed
-    (when (bfepm-core-package-installed-p (bfepm-package-name package))
-      (bfepm-utils-message "Package %s already installed" (bfepm-package-name package))
-      (cl-return-from bfepm-package-install))
-    
-    ;; Find package in sources
-    (let ((package-info (bfepm-package--find-package package config)))
-      (unless package-info
-        (bfepm-utils-error "Package not found: %s" (bfepm-package-name package)))
-      
-      ;; Validate version if specified
-      (when (and (not (string= (bfepm-package-version package) "latest"))
-                 package-info)
-        (let* ((info-list (if (vectorp package-info) (append package-info nil) package-info))
-               (available-version (bfepm-package--format-version (car info-list)))
-               (requested-version (bfepm-package-version package)))
-          (unless (bfepm-package--version-matches-p available-version requested-version)
-            (bfepm-utils-message "Warning: Requested version %s not available. Latest is %s" 
-                              requested-version available-version))))
-      
-      ;; Download and install
-      (bfepm-package--download-and-install package package-info))))
+    (if (bfepm-core-package-installed-p (bfepm-package-name package))
+        (bfepm-utils-message "Package %s already installed" (bfepm-package-name package))
+      (progn
+        (bfepm-utils-message "Installing package: %s" (bfepm-package-name package))
+        
+        ;; Find package in sources
+        (let ((package-info (bfepm-package--find-package package config)))
+          (unless package-info
+            (bfepm-utils-error "Package not found: %s" (bfepm-package-name package)))
+          
+          ;; Validate version if specified
+          (when (and (not (string= (bfepm-package-version package) "latest"))
+                     package-info)
+            (let* ((info-list (if (vectorp package-info) (append package-info nil) package-info))
+                   (available-version (bfepm-package--format-version (car info-list)))
+                   (requested-version (bfepm-package-version package)))
+              (unless (bfepm-package--version-matches-p available-version requested-version)
+                (bfepm-utils-message "Warning: Requested version %s not available. Latest is %s" 
+                                  requested-version available-version))))
+          
+          ;; Download and install
+          (bfepm-package--download-and-install package package-info))))))
 
 (defun bfepm-package--find-package (package config)
   "Find PACKAGE in available sources from CONFIG."

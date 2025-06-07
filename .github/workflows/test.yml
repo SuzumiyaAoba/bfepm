@@ -109,6 +109,7 @@ jobs:
       - name: Run tests with coverage
         run: |
           emacs -batch -L . -L test \
+            -l ~/.emacs.d/init.el \
             --eval "(require 'undercover)" \
             --eval "(undercover \"*.el\" (:exclude \"test/*.el\"))" \
             --eval "(require 'ert)" \
