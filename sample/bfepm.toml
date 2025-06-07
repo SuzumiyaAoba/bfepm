@@ -1,9 +1,9 @@
-# EPM Configuration
-# Package management configuration for EPM
+# BFEPM Configuration
+# Package management configuration for BFEPM
 
 [meta]
 version = "1.0.0"
-description = "EPM package management configuration"
+description = "BFEPM package management configuration"
 
 [sources]
 melpa = { url = "https://melpa.org/packages/", priority = 10 }

@@ -20,9 +20,18 @@
 (defun bfepm-utils-version-compare (v1 v2)
   "Compare version strings V1 and V2.
 Return 1 if V1 > V2, -1 if V1 < V2, 0 if equal."
-  (let ((parts1 (mapcar #'string-to-number (split-string v1 "\\.")))
-        (parts2 (mapcar #'string-to-number (split-string v2 "\\."))))
-    (bfepm-utils--version-compare-parts parts1 parts2)))
+  (if (and (bfepm-utils--is-melpa-date-version-p v1) 
+           (bfepm-utils--is-melpa-date-version-p v2))
+      ;; Both are MELPA date versions
+      (let ((num1 (string-to-number (replace-regexp-in-string "\\." "" v1)))
+            (num2 (string-to-number (replace-regexp-in-string "\\." "" v2))))
+        (cond ((> num1 num2) 1)
+              ((< num1 num2) -1)
+              (t 0)))
+    ;; Standard semantic version handling
+    (let ((parts1 (mapcar #'string-to-number (split-string v1 "\\.")))
+          (parts2 (mapcar #'string-to-number (split-string v2 "\\."))))
+      (bfepm-utils--version-compare-parts parts1 parts2))))
 
 (defun bfepm-utils--version-compare-parts (parts1 parts2)
   "Compare version parts lists PARTS1 and PARTS2."
@@ -44,20 +53,50 @@ Return 1 if V1 > V2, -1 if V1 < V2, 0 if equal."
     (bfepm-utils--version-satisfies-tilde-p version (substring requirement 1)))
    (t (string= version requirement))))
 
+(defun bfepm-utils--is-melpa-date-version-p (version)
+  "Check if VERSION is a MELPA date version (YYYYMMDD.HHMM format)."
+  (string-match-p "^[0-9]\\{8\\}\\.[0-9]\\{4\\}$" version))
+
 (defun bfepm-utils--version-satisfies-caret-p (version requirement)
   "Check if VERSION satisfies caret REQUIREMENT."
-  (let ((req-parts (mapcar #'string-to-number (split-string requirement "\\.")))
-        (ver-parts (mapcar #'string-to-number (split-string version "\\."))))
-    (and (>= (bfepm-utils-version-compare version requirement) 0)
-         (< (car ver-parts) (1+ (car req-parts))))))
+  (if (bfepm-utils--is-melpa-date-version-p version)
+      ;; MELPA date version handling (YYYYMMDD.HHMM)
+      (if (bfepm-utils--is-melpa-date-version-p requirement)
+          ;; Both are MELPA date versions - same year
+          (let ((ver-date (car (split-string version "\\.")))
+                (req-date (car (split-string requirement "\\."))))
+            (and (>= (bfepm-utils-version-compare version requirement) 0)
+                 (string= (substring ver-date 0 4) (substring req-date 0 4))))
+        ;; Version is MELPA date but requirement is not - assume requirement is date prefix
+        (let ((ver-date (car (split-string version "\\."))))
+          (and (>= (string-to-number ver-date) (string-to-number requirement))
+               (string= (substring ver-date 0 4) (substring requirement 0 4)))))
+    ;; Standard semantic version handling
+    (let ((req-parts (mapcar #'string-to-number (split-string requirement "\\.")))
+          (ver-parts (mapcar #'string-to-number (split-string version "\\."))))
+      (and (>= (bfepm-utils-version-compare version requirement) 0)
+           (< (car ver-parts) (1+ (car req-parts)))))))
 
 (defun bfepm-utils--version-satisfies-tilde-p (version requirement)
   "Check if VERSION satisfies tilde REQUIREMENT."
-  (let ((req-parts (mapcar #'string-to-number (split-string requirement "\\.")))
-        (ver-parts (mapcar #'string-to-number (split-string version "\\."))))
-    (and (>= (bfepm-utils-version-compare version requirement) 0)
-         (= (car ver-parts) (car req-parts))
-         (= (cadr ver-parts) (cadr req-parts)))))
+  (if (bfepm-utils--is-melpa-date-version-p version)
+      ;; MELPA date version handling - same day
+      (if (bfepm-utils--is-melpa-date-version-p requirement)
+          ;; Both are MELPA date versions - same day
+          (let ((ver-date (car (split-string version "\\.")))
+                (req-date (car (split-string requirement "\\."))))
+            (and (>= (bfepm-utils-version-compare version requirement) 0)
+                 (string= ver-date req-date)))
+        ;; Version is MELPA date but requirement is not - check day prefix match
+        (let ((ver-date (car (split-string version "\\."))))
+          (and (>= (string-to-number ver-date) (string-to-number requirement))
+               (string-prefix-p requirement ver-date))))
+    ;; Standard semantic version handling
+    (let ((req-parts (mapcar #'string-to-number (split-string requirement "\\.")))
+          (ver-parts (mapcar #'string-to-number (split-string version "\\."))))
+      (and (>= (bfepm-utils-version-compare version requirement) 0)
+           (= (car ver-parts) (car req-parts))
+           (= (cadr ver-parts) (cadr req-parts))))))
 
 (defun bfepm-utils-ensure-directory (dir)
   "Ensure directory DIR exists, creating it if necessary."

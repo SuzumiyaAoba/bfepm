@@ -1,11 +1,11 @@
-;;; bfepm.el --- Better Fast Emacs Package Manager -*- lexical-binding: t -*-
+;;; bfepm.el --- Better Fast Package Manager -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2024
 
 ;; Author: SuzumiyaAoba
 ;; Version: 0.1.0
 ;; Package-Requires: ((emacs "26.1") (toml "0.1.0") (async "1.9.4"))
-;; Keywords: package management
+;; Keywords: tools package-management
 ;; URL: https://github.com/SuzumiyaAoba/bfepm
 
 ;;; Commentary:
@@ -50,15 +50,12 @@
    (message "Warning: bfepm-package could not be loaded")
    (setq bfepm--package-available nil)))
 
-(defgroup bfepm nil
-  "Better Fast Emacs Package Manager."
-  :group 'applications
-  :prefix "bfepm-")
-
-(defcustom bfepm-directory (expand-file-name "bfepm" user-emacs-directory)
-  "Directory where BFEPM stores its data."
-  :type 'directory
-  :group 'bfepm)
+;; Declare external functions to avoid compilation warnings
+(declare-function bfepm-package-list "bfepm-package")
+(declare-function bfepm-package-install "bfepm-package")
+(declare-function bfepm-package-update "bfepm-package")
+(declare-function bfepm-package-update-all "bfepm-package")
+(declare-function bfepm-package-remove "bfepm-package")
 
 (defcustom bfepm-config-file (expand-file-name "bfepm.toml" user-emacs-directory)
   "Path to the main BFEPM configuration file."

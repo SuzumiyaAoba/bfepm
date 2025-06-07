@@ -13,16 +13,21 @@
 .emacs.desktop
 .emacs.desktop.lock
 
-# EPM specific directories
-epm/
+# BFEPM specific directories
+bfepm/
 *.lock
 !flake.lock
 
 # Build artifacts
 .cask/
+.keg/
 dist/
 *.tar
 *.tar.gz
+
+# Coverage reports
+coverage-final.json
+.coverage/
 
 # Logs
 *.log

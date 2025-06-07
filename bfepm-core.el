@@ -8,6 +8,21 @@
 
 (require 'cl-lib)
 
+;; Declare external functions to avoid compilation warnings
+(declare-function bfepm-config-save "bfepm-config")
+(declare-function bfepm-config-load "bfepm-config")
+(declare-function bfepm-config-create-default "bfepm-config")
+
+(defgroup bfepm nil
+  "Better Fast Emacs Package Manager."
+  :group 'applications
+  :prefix "bfepm-")
+
+(defcustom bfepm-directory (expand-file-name "bfepm" user-emacs-directory)
+  "Directory where BFEPM stores its data."
+  :type 'directory
+  :group 'bfepm)
+
 (defvar bfepm--initialized nil
   "Whether BFEPM has been initialized.")
 
