@@ -4,7 +4,7 @@
 
 ;; Author: SuzumiyaAoba
 ;; Version: 0.1.0
-;; Package-Requires: ((emacs "26.1") (toml "0.1.0") (async "1.9.4"))
+;; Package-Requires: ((emacs "29.1") (toml "0.1.0") (async "1.9.4"))
 ;; Keywords: tools package-management
 ;; URL: https://github.com/SuzumiyaAoba/bfepm
 
