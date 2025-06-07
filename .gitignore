@@ -1,0 +1,53 @@
+# Compiled Emacs Lisp files
+*.elc
+
+# Backup files
+*~
+\#*\#
+.\#*
+
+# Auto-save files
+.saves-*
+
+# Emacs desktop files
+.emacs.desktop
+.emacs.desktop.lock
+
+# EPM specific directories
+epm/
+*.lock
+!flake.lock
+
+# Build artifacts
+.cask/
+dist/
+*.tar
+*.tar.gz
+
+# Logs
+*.log
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# Editor specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Nix build results
+result
+result-*
+
+# direnv
+.direnv/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Claude
+.claude
