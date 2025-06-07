@@ -69,6 +69,8 @@ Return 1 if V1 > V2, -1 if V1 < V2, 0 if equal."
                  (string= (substring ver-date 0 4) (substring req-date 0 4))))
         ;; Version is MELPA date but requirement is not - assume requirement is date prefix
         (let ((ver-date (car (split-string version "\\."))))
+          (unless (string-match-p "^[0-9]\\{4,8\\}$" requirement)
+            (error "Invalid date prefix requirement: %s" requirement))
           (and (>= (string-to-number ver-date) (string-to-number requirement))
                (string= (substring ver-date 0 4) (substring requirement 0 4)))))
     ;; Standard semantic version handling
@@ -89,6 +91,8 @@ Return 1 if V1 > V2, -1 if V1 < V2, 0 if equal."
                  (string= ver-date req-date)))
         ;; Version is MELPA date but requirement is not - check day prefix match
         (let ((ver-date (car (split-string version "\\."))))
+          (unless (string-match-p "^[0-9]\\{4,8\\}$" requirement)
+            (error "Invalid date prefix requirement: %s" requirement))
           (and (>= (string-to-number ver-date) (string-to-number requirement))
                (string-prefix-p requirement ver-date))))
     ;; Standard semantic version handling

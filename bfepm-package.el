@@ -90,7 +90,7 @@ or a bfepm-package structure."
     ;; Check if already installed
     (when (bfepm-core-package-installed-p (bfepm-package-name package))
       (bfepm-utils-message "Package %s already installed" (bfepm-package-name package))
-      (cl-return-from bfepm-package--install-single))
+      (cl-return-from bfepm-package-install))
     
     ;; Find package in sources
     (let ((package-info (bfepm-package--find-package package config)))
