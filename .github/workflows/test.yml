@@ -35,7 +35,7 @@ jobs:
           echo "(require 'package)" > ~/.emacs.d/init.el
           echo "(add-to-list 'package-archives '(\"melpa\" . \"https://melpa.org/packages/\") t)" >> ~/.emacs.d/init.el
           echo "(package-initialize)" >> ~/.emacs.d/init.el
-        
+
           # Install dependencies if available
           emacs -batch -l ~/.emacs.d/init.el \
             --eval "(package-refresh-contents)" \
@@ -99,7 +99,7 @@ jobs:
           echo "(require 'package)" > ~/.emacs.d/init.el
           echo "(add-to-list 'package-archives '(\"melpa\" . \"https://melpa.org/packages/\") t)" >> ~/.emacs.d/init.el
           echo "(package-initialize)" >> ~/.emacs.d/init.el
-          
+
           emacs -batch -l ~/.emacs.d/init.el \
             --eval "(package-refresh-contents)" \
             --eval "(package-install 'undercover)" \
@@ -123,3 +123,4 @@ jobs:
         with:
           files: ./coverage-final.json
           fail_ci_if_error: false
+
