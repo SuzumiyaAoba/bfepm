@@ -126,6 +126,7 @@ Before starting any task, follow this workflow:
 ### Commit Message Format
 ```
 type: brief description of changes
+(Common types include: `feat` for new features, `fix` for bug fixes, `docs` for documentation changes, `refactor` for code restructuring without functional changes, `style` for formatting, `test` for adding or improving tests, `chore` for build process or auxiliary tool changes)
 
 - Detailed explanation of what was changed
 - Why the changes were made
