@@ -54,9 +54,12 @@
                                    ;; Default uncovered
                                    (t nil))))
                       
-                      (when covered
-                        (setq file-covered (1+ file-covered))
-                        (puthash (number-to-string line-num) 1 file-coverage))))
+                      ;; Always add the line to coverage data (1 for covered, 0 for uncovered)
+                      (if covered
+                          (progn
+                            (setq file-covered (1+ file-covered))
+                            (puthash (number-to-string line-num) 1 file-coverage))
+                        (puthash (number-to-string line-num) 0 file-coverage))))
                   
                   (setq line-num (1+ line-num))
                   (forward-line 1)))
