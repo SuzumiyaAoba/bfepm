@@ -71,13 +71,7 @@ test-coverage:
 		--eval "(require 'testcover)" \
 		--eval "(require 'ert)" \
 		--eval "(setq ert-batch-backtrace-right-margin 200)" \
-		--eval "(testcover-start \"lisp/bfepm.el\")" \
-		--eval "(testcover-start \"lisp/bfepm-core.el\")" \
-		--eval "(testcover-start \"lisp/bfepm-config.el\")" \
-		--eval "(testcover-start \"lisp/bfepm-config-minimal.el\")" \
-		--eval "(testcover-start \"lisp/bfepm-package.el\")" \
-		--eval "(testcover-start \"lisp/bfepm-utils.el\")" \
-		--eval "(testcover-start \"lisp/bfepm-lock.el\")" \
+		--eval "(dolist (file (directory-files \"lisp\" t \"\\.el$$\")) (testcover-start file))" \
 		-l test/bfepm-test.el \
 		-l test/bfepm-config-test.el \
 		-l test/bfepm-utils-test.el \
