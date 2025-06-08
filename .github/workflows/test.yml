@@ -110,10 +110,12 @@ jobs:
         env:
           COVERALLS_REPO_TOKEN: dummy
         run: |
+          # Remove compiled files to ensure source code coverage
+          rm -f lisp/*.elc coverage-final.json
           emacs -batch -L lisp -L test \
             -l ~/.emacs.d/init.el \
             --eval "(require 'undercover)" \
-            --eval "(undercover \"lisp/*.el\" (:exclude \"test/*.el\") (:report-format 'codecov))" \
+            --eval "(undercover \"lisp/bfepm.el\" \"lisp/bfepm-core.el\" \"lisp/bfepm-config.el\" \"lisp/bfepm-config-minimal.el\" \"lisp/bfepm-package.el\" \"lisp/bfepm-utils.el\" \"lisp/bfepm-lock.el\" (:exclude \"test/*.el\") (:report-format 'codecov) (:report-file \"coverage-final.json\") (:send-report nil))" \
             --eval "(require 'ert)" \
             -l test/bfepm-test.el \
             -l test/bfepm-config-test.el \

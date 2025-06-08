@@ -64,19 +64,19 @@ check: compile lint test
 
 # Test with coverage (requires undercover)
 test-coverage:
+	rm -f lisp/*.elc coverage-final.json
 	$(EMACS) -batch -L lisp -L test \
 		--eval "(require 'package)" \
 		--eval "(add-to-list 'package-archives '(\"melpa\" . \"https://melpa.org/packages/\") t)" \
 		--eval "(package-initialize)" \
 		--eval "(unless (package-installed-p 'undercover) (package-refresh-contents) (package-install 'undercover))" \
 		--eval "(require 'undercover)" \
-		--eval "(undercover \"lisp/*.el\" (:exclude \"test/*.el\") (:report-format 'codecov) (:report-file \"coverage-final.json\") (:send-report nil))" \
+		--eval "(undercover \"lisp/bfepm.el\" \"lisp/bfepm-core.el\" \"lisp/bfepm-config.el\" \"lisp/bfepm-config-minimal.el\" \"lisp/bfepm-package.el\" \"lisp/bfepm-utils.el\" \"lisp/bfepm-lock.el\" (:exclude \"test/*.el\") (:report-format 'codecov) (:report-file \"coverage-final.json\") (:send-report nil))" \
 		--eval "(require 'ert)" \
 		-l test/bfepm-test.el \
 		-l test/bfepm-config-test.el \
 		-l test/bfepm-utils-test.el \
-		-f ert-run-tests-batch-and-exit \
-		--eval "(undercover-report)"
+		-f ert-run-tests-batch-and-exit
 
 # Release preparation
 release: check
