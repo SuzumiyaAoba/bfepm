@@ -70,12 +70,13 @@ test-coverage:
 		--eval "(package-initialize)" \
 		--eval "(unless (package-installed-p 'undercover) (package-refresh-contents) (package-install 'undercover))" \
 		--eval "(require 'undercover)" \
-		--eval "(undercover \"*.el\" (:exclude \"test/*.el\"))" \
+		--eval "(undercover \"*.el\" (:exclude \"test/*.el\") (:report-format 'codecov) (:report-file \"coverage-final.json\") (:send-report nil))" \
 		--eval "(require 'ert)" \
 		-l test/bfepm-test.el \
 		-l test/bfepm-config-test.el \
 		-l test/bfepm-utils-test.el \
-		-f ert-run-tests-batch-and-exit
+		-f ert-run-tests-batch-and-exit \
+		--eval "(undercover-report)"
 
 # Release preparation
 release: check
