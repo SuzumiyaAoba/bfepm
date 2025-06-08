@@ -98,6 +98,57 @@ bfepm uses TOML for configuration with support for:
 - **Coverage Reporting**: Using undercover.el for test coverage analysis
 - **Mock-friendly**: Utilities designed for easy testing and isolation
 
+## Git Workflow Guidelines
+
+### Task Workflow
+Before starting any task, follow this workflow:
+
+1. **Check Current Branch Status**
+   - Verify current branch is appropriate for the task
+   - Switch to master if needed: `git checkout master`
+   - Pull latest changes: `git pull origin master`
+
+2. **Create Feature Branch**
+   - Use descriptive branch names: `feature/description-of-work`
+   - Example: `git checkout -b feature/add-dependency-resolution`
+
+3. **Complete Task and Commit**
+   - Make changes and test thoroughly
+   - Run `make check` to ensure quality
+   - Stage relevant files: `git add <files>`
+   - Create descriptive commit with proper format
+
+4. **Push and Create PR**
+   - Push branch: `git push -u origin <branch-name>`
+   - Create PR with comprehensive description
+   - Include test plan and summary of changes
+
+### Commit Message Format
+```
+type: brief description of changes
+
+- Detailed explanation of what was changed
+- Why the changes were made
+- Impact on the system
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+```
+
+### Branch Management
+- **Feature branches**: `feature/description`
+- **Bug fixes**: `fix/issue-description`
+- **Documentation**: `docs/topic`
+- **Refactoring**: `refactor/component-name`
+
+### Pre-commit Checklist
+- [ ] All tests pass (`make test`)
+- [ ] Code compiles without warnings (`make compile`)
+- [ ] Linting passes (`make lint`)
+- [ ] Documentation updated if needed
+- [ ] CLAUDE.md updated for workflow changes
+
 When working with this codebase:
 - Follow existing naming conventions (bfepm- prefix for all functions)
 - Use cl-defstruct for data structures  
@@ -107,3 +158,4 @@ When working with this codebase:
 - Ensure lexical binding is enabled (`-*- lexical-binding: t -*-`)
 - Run `make check` before committing changes
 - Maintain test coverage above 80% when possible
+- Always follow the Git workflow guidelines above
