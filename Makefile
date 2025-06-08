@@ -11,7 +11,9 @@ install:
 
 # Build the project
 build: install
-	$(KEG) build
+	$(EMACS) -batch -L lisp \
+		--eval "(setq byte-compile-error-on-warn t)" \
+		-f batch-byte-compile lisp/*.el
 
 # Run tests with ERT
 test: build
