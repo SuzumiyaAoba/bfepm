@@ -10,7 +10,7 @@
 (package-file "bfepm.el")
 
 ;; Runtime dependencies
-(depends-on "emacs" "27.1")
+(depends-on "emacs" "29.1")
 
 ;; Optional dependencies for enhanced functionality
 (depends-on "toml" "0.1.0")
