@@ -1,20 +1,33 @@
-# bfepm Implementation Plan
+# bfepm Implementation Plan - Legacy
+
+> **Note**: This document represents the original implementation plan. For current status and roadmap, see [IMPLEMENTATION_ROADMAP.md](./IMPLEMENTATION_ROADMAP.md).
+
+## Current Status (2025-06-08)
+
+**Phase 1 Foundation: COMPLETED** ✅
+- Project structure established with lisp/ directory
+- Core data structures implemented
+- Configuration loading (TOML + minimal fallback)
+- Basic package management operations
+- Comprehensive test suite (31 tests)
+- CI/CD pipeline with GitHub Actions
+- Build system with Makefile and Keg
 
 ## Development Approach
 
 ### Agile Development Methodology
-- **MVP Priority**: Early release with minimal features
-- **Iterative Development**: 2-week sprints
-- **Test-Driven Development**: TDD for quality assurance
-- **Continuous Integration**: Automated testing and deployment
+- **MVP Priority**: Early release with minimal features ✅ **ACHIEVED**
+- **Iterative Development**: 2-week sprints ✅ **IN PROGRESS**
+- **Test-Driven Development**: TDD for quality assurance ✅ **ACHIEVED**
+- **Continuous Integration**: Automated testing and deployment ✅ **ACHIEVED**
 
 ### Technology Stack
-- **Core Language**: Emacs Lisp
-- **Configuration Parser**: TOML (using toml.el)
-- **Asynchronous Processing**: async.el
-- **Testing Framework**: buttercup.el
-- **Build Tools**: Cask/Eask
-- **CI/CD**: GitHub Actions
+- **Core Language**: Emacs Lisp ✅ **IMPLEMENTED**
+- **Configuration Parser**: TOML (using toml.el) ✅ **IMPLEMENTED**
+- **Asynchronous Processing**: async.el (planned)
+- **Testing Framework**: ERT (changed from buttercup) ✅ **IMPLEMENTED**
+- **Build Tools**: Keg (changed from Cask/Eask) ✅ **IMPLEMENTED**
+- **CI/CD**: GitHub Actions ✅ **IMPLEMENTED**
 
 ## Phase 1: Core Foundation (v0.1.0) - 4 weeks
 
