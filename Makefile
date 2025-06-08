@@ -64,21 +64,27 @@ compile:
 # Run all checks
 check: compile lint test
 
-# Test with coverage (requires undercover)
+# Test with coverage using built-in testcover
 test-coverage:
-	rm -f lisp/*.elc coverage-final.json
-	$(EMACS) -batch -L lisp -L test \
-		--eval "(require 'package)" \
-		--eval "(add-to-list 'package-archives '(\"melpa\" . \"https://melpa.org/packages/\") t)" \
-		--eval "(package-initialize)" \
-		--eval "(unless (package-installed-p 'undercover) (package-refresh-contents) (package-install 'undercover))" \
-		--eval "(require 'undercover)" \
-		--eval "(undercover \"lisp/bfepm.el\" \"lisp/bfepm-core.el\" \"lisp/bfepm-config.el\" \"lisp/bfepm-config-minimal.el\" \"lisp/bfepm-package.el\" \"lisp/bfepm-utils.el\" \"lisp/bfepm-lock.el\" (:exclude \"test/*.el\") (:report-format 'codecov) (:report-file \"coverage-final.json\") (:send-report nil))" \
+	rm -f lisp/*.elc coverage*.json coverage*.txt
+	$(EMACS) -batch -L . -L lisp -L test \
+		--eval "(require 'testcover)" \
 		--eval "(require 'ert)" \
+		--eval "(setq ert-batch-backtrace-right-margin 200)" \
+		--eval "(testcover-start \"lisp/bfepm.el\")" \
+		--eval "(testcover-start \"lisp/bfepm-core.el\")" \
+		--eval "(testcover-start \"lisp/bfepm-config.el\")" \
+		--eval "(testcover-start \"lisp/bfepm-config-minimal.el\")" \
+		--eval "(testcover-start \"lisp/bfepm-package.el\")" \
+		--eval "(testcover-start \"lisp/bfepm-utils.el\")" \
+		--eval "(testcover-start \"lisp/bfepm-lock.el\")" \
 		-l test/bfepm-test.el \
 		-l test/bfepm-config-test.el \
 		-l test/bfepm-utils-test.el \
 		-f ert-run-tests-batch-and-exit
+	@echo "Generating coverage report..."
+	$(EMACS) -batch -L . -L lisp -l scripts/generate-coverage.el
+	@echo "Coverage report generated in coverage.json"
 
 # Release preparation
 release: check

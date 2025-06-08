@@ -20,5 +20,4 @@
 (development
  (depends-on "keg")
  (depends-on "ert-runner")
- (depends-on "package-lint")
- (depends-on "undercover"))
+ (depends-on "package-lint"))

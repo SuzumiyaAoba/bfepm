@@ -102,30 +102,36 @@ jobs:
 
           emacs -batch -l ~/.emacs.d/init.el \
             --eval "(package-refresh-contents)" \
-            --eval "(package-install 'undercover)" \
             --eval "(ignore-errors (package-install 'toml))" \
             --eval "(ignore-errors (package-install 'async))"
 
       - name: Run tests with coverage
-        env:
-          COVERALLS_REPO_TOKEN: dummy
         run: |
           # Remove compiled files to ensure source code coverage
-          rm -f lisp/*.elc coverage-final.json
-          emacs -batch -L lisp -L test \
-            -l ~/.emacs.d/init.el \
-            --eval "(require 'undercover)" \
-            --eval "(undercover \"lisp/bfepm.el\" \"lisp/bfepm-core.el\" \"lisp/bfepm-config.el\" \"lisp/bfepm-config-minimal.el\" \"lisp/bfepm-package.el\" \"lisp/bfepm-utils.el\" \"lisp/bfepm-lock.el\" (:exclude \"test/*.el\") (:report-format 'codecov) (:report-file \"coverage-final.json\") (:send-report nil))" \
+          rm -f lisp/*.elc coverage*.json coverage*.txt
+          emacs -batch -L . -L lisp -L test \
+            --eval "(require 'testcover)" \
             --eval "(require 'ert)" \
+            --eval "(setq ert-batch-backtrace-right-margin 200)" \
+            --eval "(testcover-start \"lisp/bfepm.el\")" \
+            --eval "(testcover-start \"lisp/bfepm-core.el\")" \
+            --eval "(testcover-start \"lisp/bfepm-config.el\")" \
+            --eval "(testcover-start \"lisp/bfepm-config-minimal.el\")" \
+            --eval "(testcover-start \"lisp/bfepm-package.el\")" \
+            --eval "(testcover-start \"lisp/bfepm-utils.el\")" \
+            --eval "(testcover-start \"lisp/bfepm-lock.el\")" \
             -l test/bfepm-test.el \
             -l test/bfepm-config-test.el \
             -l test/bfepm-utils-test.el \
             -f ert-run-tests-batch-and-exit
+          
+          # Generate coverage report
+          emacs -batch -L . -L lisp -l scripts/generate-coverage.el
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./coverage-final.json
+          files: ./coverage.json
           fail_ci_if_error: false
 
