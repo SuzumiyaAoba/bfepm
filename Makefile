@@ -15,7 +15,7 @@ build: install
 
 # Run tests with ERT
 test: build
-	$(EMACS) -batch -L . -L test \
+	$(EMACS) -batch -L lisp -L test \
 		--eval "(require 'ert)" \
 		--eval "(setq ert-batch-backtrace-right-margin 200)" \
 		-l test/bfepm-test.el \
@@ -25,7 +25,7 @@ test: build
 
 # Clean compiled files
 clean:
-	rm -f *.elc
+	rm -f lisp/*.elc
 	rm -f test/*.elc
 
 # Lint source files
@@ -33,44 +33,44 @@ lint: package-lint checkdoc
 
 # Package linting
 package-lint:
-	$(EMACS) -batch -L . \
+	$(EMACS) -batch -L lisp \
 		--eval "(require 'package)" \
 		--eval "(add-to-list 'package-archives '(\"melpa\" . \"https://melpa.org/packages/\") t)" \
 		--eval "(package-initialize)" \
 		--eval "(unless (package-installed-p 'package-lint) (package-refresh-contents) (package-install 'package-lint))" \
 		--eval "(require 'package-lint)" \
 		--eval "(package-lint-batch-and-exit)" \
-		bfepm.el
+		lisp/bfepm.el
 
 # Documentation linting
 checkdoc:
-	$(EMACS) -batch -L . \
-		--eval "(checkdoc-file \"bfepm.el\")" \
-		--eval "(checkdoc-file \"bfepm-core.el\")" \
-		--eval "(checkdoc-file \"bfepm-config.el\")" \
-		--eval "(checkdoc-file \"bfepm-config-minimal.el\")" \
-		--eval "(checkdoc-file \"bfepm-utils.el\")" \
-		--eval "(checkdoc-file \"bfepm-package.el\")" \
-		--eval "(checkdoc-file \"bfepm-lock.el\")"
+	$(EMACS) -batch -L lisp \
+		--eval "(checkdoc-file \"lisp/bfepm.el\")" \
+		--eval "(checkdoc-file \"lisp/bfepm-core.el\")" \
+		--eval "(checkdoc-file \"lisp/bfepm-config.el\")" \
+		--eval "(checkdoc-file \"lisp/bfepm-config-minimal.el\")" \
+		--eval "(checkdoc-file \"lisp/bfepm-utils.el\")" \
+		--eval "(checkdoc-file \"lisp/bfepm-package.el\")" \
+		--eval "(checkdoc-file \"lisp/bfepm-lock.el\")"
 
 # Byte compile all files
 compile:
-	$(EMACS) -batch -L . \
+	$(EMACS) -batch -L lisp \
 		--eval "(setq byte-compile-error-on-warn t)" \
-		-f batch-byte-compile *.el
+		-f batch-byte-compile lisp/*.el
 
 # Run all checks
 check: compile lint test
 
 # Test with coverage (requires undercover)
 test-coverage:
-	$(EMACS) -batch -L . -L test \
+	$(EMACS) -batch -L lisp -L test \
 		--eval "(require 'package)" \
 		--eval "(add-to-list 'package-archives '(\"melpa\" . \"https://melpa.org/packages/\") t)" \
 		--eval "(package-initialize)" \
 		--eval "(unless (package-installed-p 'undercover) (package-refresh-contents) (package-install 'undercover))" \
 		--eval "(require 'undercover)" \
-		--eval "(undercover \"*.el\" (:exclude \"test/*.el\") (:report-format 'codecov) (:report-file \"coverage-final.json\") (:send-report nil))" \
+		--eval "(undercover \"lisp/*.el\" (:exclude \"test/*.el\") (:report-format 'codecov) (:report-file \"coverage-final.json\") (:send-report nil))" \
 		--eval "(require 'ert)" \
 		-l test/bfepm-test.el \
 		-l test/bfepm-config-test.el \
