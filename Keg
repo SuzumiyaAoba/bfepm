@@ -9,9 +9,6 @@
 ;; Package file
 (package-file "lisp/bfepm.el")
 
-;; Source files
-(files "lisp/*.el" "lisp/*.el.in")
-
 ;; Runtime dependencies
 (depends-on "emacs" "29.1")
 
