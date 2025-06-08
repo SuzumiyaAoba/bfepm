@@ -107,15 +107,27 @@ Return 1 if V1 > V2, -1 if V1 < V2, 0 if equal."
   (unless (file-directory-p dir)
     (make-directory dir t)))
 
-(defun bfepm-utils-download-file (url local-file)
-  "Download file from URL to LOCAL-FILE."
-  (bfepm-utils-message "Downloading from %s..." url)
-  (condition-case err
-      (progn
-        (url-copy-file url local-file t)
-        (bfepm-utils-message "Downloaded to %s" local-file))
-    (error
-     (bfepm-utils-error "Failed to download %s: %s" url (error-message-string err)))))
+(defun bfepm-utils-download-file (url local-file &optional max-retries)
+  "Download file from URL to LOCAL-FILE with retry logic.
+MAX-RETRIES defaults to 3."
+  (let ((retries (or max-retries 3))
+        (attempt 0)
+        (success nil))
+    (while (and (< attempt retries) (not success))
+      (setq attempt (1+ attempt))
+      (bfepm-utils-message "Downloading from %s... (attempt %d/%d)" url attempt retries)
+      (condition-case err
+          (progn
+            (url-copy-file url local-file t)
+            (when (file-exists-p local-file)
+              (bfepm-utils-message "Downloaded to %s" local-file)
+              (setq success t)))
+        (error
+         (bfepm-utils-message "Download attempt %d failed: %s" attempt (error-message-string err))
+         (when (= attempt retries)
+           (bfepm-utils-error "Failed to download %s after %d attempts: %s" 
+                             url retries (error-message-string err))))))
+    success))
 
 (defun bfepm-utils-extract-tar (tar-file target-dir)
   "Extract TAR-FILE to TARGET-DIR."
@@ -136,6 +148,23 @@ Return 1 if V1 > V2, -1 if V1 < V2, 0 if equal."
     (with-temp-buffer
       (insert-file-contents-literally file)
       (secure-hash 'sha256 (current-buffer)))))
+
+(defun bfepm-utils-verify-checksum (file expected-checksum)
+  "Verify FILE against EXPECTED-CHECKSUM.
+Returns t if checksum matches, nil otherwise."
+  (when (and file expected-checksum (file-exists-p file))
+    (let ((actual-checksum (bfepm-utils-file-checksum file)))
+      (string= (downcase actual-checksum) (downcase expected-checksum)))))
+
+(defun bfepm-utils-http-get (url)
+  "Make HTTP GET request to URL and return response body."
+  (with-temp-buffer
+    (condition-case err
+        (progn
+          (url-insert-file-contents url)
+          (buffer-string))
+      (error
+       (bfepm-utils-error "HTTP GET failed for %s: %s" url (error-message-string err))))))
 
 (provide 'bfepm-utils)
 

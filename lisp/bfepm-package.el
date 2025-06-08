@@ -154,12 +154,17 @@ or a bfepm-package structure."
                      package-name source))
 
 (defun bfepm-package--fetch-archive-contents (archive-url)
-  "Fetch archive contents from ARCHIVE-URL."
+  "Fetch archive contents from ARCHIVE-URL with error handling."
   (let ((archive-file (concat archive-url "archive-contents")))
-    (with-temp-buffer
-      (url-insert-file-contents archive-file)
-      (goto-char (point-min))
-      (read (current-buffer)))))
+    (condition-case err
+        (with-temp-buffer
+          (bfepm-utils-message "Fetching archive contents from %s" archive-file)
+          (url-insert-file-contents archive-file)
+          (goto-char (point-min))
+          (read (current-buffer)))
+      (error
+       (bfepm-utils-error "Failed to fetch archive contents from %s: %s" 
+                         archive-file (error-message-string err))))))
 
 (defun bfepm-package--download-and-install (package package-info)
   "Download and install PACKAGE using PACKAGE-INFO."
@@ -180,31 +185,37 @@ or a bfepm-package structure."
     
     (bfepm-utils-ensure-directory download-dir)
     
-    ;; Download package file
+    ;; Download package file with checksum verification
     (bfepm-utils-message "Downloading %s..." package-name)
-    (condition-case err
-        (bfepm-utils-download-file archive-file local-file)
-      (error 
-       (bfepm-utils-error "Failed to download %s: %s" package-name (error-message-string err))))
+    (bfepm-package--download-with-checksum archive-file local-file package-name version-string kind)
     
     ;; Install dependencies first
     (bfepm-package--install-dependencies deps)
     
-    ;; Extract/install package
-    (condition-case err
-        (progn
-          (bfepm-package--extract-and-install package-name local-file kind)
-          ;; Save version information
-          (bfepm-package--save-version-info package-name version-string))
-      (error 
-       (bfepm-utils-error "Failed to install %s: %s" package-name (error-message-string err))))
+    ;; Extract/install package with rollback on failure
+    (let ((install-dir (expand-file-name package-name (bfepm-core-get-packages-directory))))
+      (condition-case err
+          (progn
+            (bfepm-package--extract-and-install package-name local-file kind)
+            ;; Save version information
+            (bfepm-package--save-version-info package-name version-string)
+            ;; Verify installation
+            (bfepm-package--verify-installation package-name install-dir))
+        (error 
+         ;; Rollback on failure
+         (when (file-directory-p install-dir)
+           (bfepm-utils-message "Rolling back failed installation of %s" package-name)
+           (ignore-errors (delete-directory install-dir t)))
+         (bfepm-utils-error "Failed to install %s: %s" package-name (error-message-string err)))))
     
     (bfepm-utils-message "Successfully installed %s" package-name)))
 
 (defun bfepm-package--build-archive-url (package-name version kind)
-  "Build archive URL for package."
-  ;; MELPA uses specific URL format
-  (let ((extension (if (eq kind 'tar) "tar" "el")))
+  "Build archive URL for package with improved format detection."
+  (let ((extension (cond
+                    ((eq kind 'tar) "tar")
+                    ((eq kind 'single) "el")
+                    (t "el"))))
     (format "https://melpa.org/packages/%s-%s.%s"
             package-name version extension)))
 
@@ -238,13 +249,24 @@ or a bfepm-package structure."
     (add-to-list 'load-path install-dir)))
 
 (defun bfepm-package--extract-tar-package (tar-file install-dir)
-  "Extract TAR-FILE to INSTALL-DIR."
+  "Extract TAR-FILE to INSTALL-DIR with error checking."
   (let ((default-directory install-dir))
-    (call-process "tar" nil nil nil "-xf" tar-file "--strip-components=1")))
+    (bfepm-utils-message "Extracting tar package to %s" install-dir)
+    (let ((result (call-process "tar" nil nil nil "-xf" tar-file "--strip-components=1")))
+      (unless (= result 0)
+        (bfepm-utils-error "Failed to extract tar file %s (exit code: %d)" tar-file result))
+      ;; Verify extraction succeeded
+      (unless (> (length (directory-files install-dir nil "^[^.]")) 0)
+        (bfepm-utils-error "Tar extraction failed: no files found in %s" install-dir)))))
 
 (defun bfepm-package--install-single-file (el-file install-dir)
-  "Install single EL-FILE to INSTALL-DIR."
-  (copy-file el-file (expand-file-name (file-name-nondirectory el-file) install-dir)))
+  "Install single EL-FILE to INSTALL-DIR with verification."
+  (let ((target-file (expand-file-name (file-name-nondirectory el-file) install-dir)))
+    (bfepm-utils-message "Installing single file to %s" target-file)
+    (copy-file el-file target-file t)
+    ;; Verify file was copied
+    (unless (file-exists-p target-file)
+      (bfepm-utils-error "Failed to copy file %s to %s" el-file target-file))))
 
 (defun bfepm-package--save-version-info (package-name version)
   "Save VERSION information for PACKAGE-NAME."
@@ -311,6 +333,53 @@ or a bfepm-package structure."
   ;; This would implement actual search functionality
   ;; For now, just a placeholder
   (bfepm-utils-message "Search functionality not yet implemented"))
+
+(defun bfepm-package--verify-installation (package-name install-dir)
+  "Verify that PACKAGE-NAME was installed correctly in INSTALL-DIR."
+  (unless (file-directory-p install-dir)
+    (bfepm-utils-error "Installation directory %s does not exist" install-dir))
+  
+  ;; Check for at least one .el file
+  (let ((el-files (directory-files install-dir nil "\\.el$")))
+    (unless el-files
+      (bfepm-utils-error "No .el files found in %s" install-dir))
+    
+    ;; Check that main package file exists (package-name.el)
+    (let ((main-file (format "%s.el" package-name)))
+      (unless (member main-file el-files)
+        ;; If main file doesn't exist, check if any .el file contains the package name
+        (unless (cl-some (lambda (file) (string-match-p package-name file)) el-files)
+          (bfepm-utils-message "Warning: Main package file %s not found, but other .el files exist" main-file))))
+    
+    (bfepm-utils-message "Installation verified: %d .el files found in %s" 
+                        (length el-files) install-dir)))
+
+(defun bfepm-package--get-package-checksum (_package-name _version _kind)
+  "Get expected checksum for PACKAGE-NAME VERSION of KIND from MELPA."
+  ;; This is a placeholder - MELPA doesn't currently provide checksums
+  ;; In the future, this could fetch from a checksum database or MELPA API
+  (bfepm-utils-message "Checksum verification not available for MELPA packages")
+  nil)
+
+(defun bfepm-package--download-with-checksum (url local-file package-name version kind)
+  "Download file from URL with optional checksum verification."
+  ;; Download the file
+  (unless (bfepm-utils-download-file url local-file 3)
+    (bfepm-utils-error "Failed to download %s after retries" package-name))
+  
+  ;; Verify file was downloaded successfully
+  (unless (and (file-exists-p local-file)
+               (> (file-attribute-size (file-attributes local-file)) 0))
+    (bfepm-utils-error "Downloaded file %s is empty or missing" local-file))
+  
+  ;; Optional checksum verification (currently not available for MELPA)
+  (let ((expected-checksum (bfepm-package--get-package-checksum package-name version kind)))
+    (when expected-checksum
+      (bfepm-utils-message "Verifying checksum for %s" package-name)
+      (unless (bfepm-utils-verify-checksum local-file expected-checksum)
+        (bfepm-utils-error "Checksum verification failed for %s" package-name))))
+  
+  t)
 
 (provide 'bfepm-package)
 
