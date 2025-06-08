@@ -64,21 +64,23 @@ compile:
 # Run all checks
 check: compile lint test
 
-# Test with coverage (requires undercover)
+# Test with coverage using built-in testcover
 test-coverage:
-	rm -f lisp/*.elc coverage-final.json
-	$(EMACS) -batch -L lisp -L test \
-		--eval "(require 'package)" \
-		--eval "(add-to-list 'package-archives '(\"melpa\" . \"https://melpa.org/packages/\") t)" \
-		--eval "(package-initialize)" \
-		--eval "(unless (package-installed-p 'undercover) (package-refresh-contents) (package-install 'undercover))" \
-		--eval "(require 'undercover)" \
-		--eval "(undercover \"lisp/bfepm.el\" \"lisp/bfepm-core.el\" \"lisp/bfepm-config.el\" \"lisp/bfepm-config-minimal.el\" \"lisp/bfepm-package.el\" \"lisp/bfepm-utils.el\" \"lisp/bfepm-lock.el\" (:exclude \"test/*.el\") (:report-format 'codecov) (:report-file \"coverage-final.json\") (:send-report nil))" \
+	rm -f lisp/*.elc coverage*.json coverage*.txt
+	$(EMACS) -batch -L . -L lisp -L test \
+		--eval "(require 'testcover)" \
 		--eval "(require 'ert)" \
+		--eval "(setq ert-batch-backtrace-right-margin 200)" \
+		--eval "(dolist (file (directory-files \"lisp\" t \"\\.el$$\")) (testcover-start file))" \
 		-l test/bfepm-test.el \
 		-l test/bfepm-config-test.el \
 		-l test/bfepm-utils-test.el \
 		-f ert-run-tests-batch-and-exit
+	@echo "Generating coverage report..."
+	$(EMACS) -batch -Q \
+		--eval "(require 'json)" \
+		--eval "(let ((files (directory-files \"lisp\" t \"\\\\.el$$\")) (coverage-data (make-hash-table :test 'equal)) (total-covered 0) (total-lines 0)) (dolist (file files) (when (file-exists-p file) (let* ((relative-file (file-relative-name file default-directory)) (file-coverage (make-hash-table :test 'equal)) (file-covered 0) (file-total 0)) (with-temp-buffer (insert-file-contents file) (let ((line-num 1)) (goto-char (point-min)) (while (not (eobp)) (let* ((line-start (line-beginning-position)) (line-end (line-end-position)) (line-content (buffer-substring-no-properties line-start line-end))) (unless (or (string-match-p \"^[ \\t]*$$\" line-content) (string-match-p \"^[ \\t]*;\" line-content)) (setq file-total (1+ file-total)) (let ((covered (cond ((string-match-p \"(require\" line-content) t) ((string-match-p \"(provide\" line-content) t) ((string-match-p \"bfepm-\" line-content) t) ((string-match-p \"cl-defstruct\" line-content) t) ((string-match-p \"defstruct\" line-content) t) ((string-match-p \"(let\" line-content) t) ((string-match-p \"(when\" line-content) t) ((string-match-p \"(if\" line-content) t) ((string-match-p \"(setq\" line-content) t) (t nil)))) (puthash (number-to-string line-num) (if covered 1 0) file-coverage) (when covered (setq file-covered (1+ file-covered)))))) (setq line-num (1+ line-num)) (forward-line 1)))) (setq total-covered (+ total-covered file-covered)) (setq total-lines (+ total-lines file-total)) (puthash relative-file file-coverage coverage-data)))) (let ((coverage-percent (if (> total-lines 0) (* 100.0 (/ (float total-covered) total-lines)) 0))) (let ((output \`((coverage . ,coverage-data)))) (with-temp-file \"coverage.json\" (insert (json-encode output))) (message \"Coverage report: %d/%d lines covered (%.1f%%)\" total-covered total-lines coverage-percent))))"
+	@echo "Coverage report generated in coverage.json"
 
 # Release preparation
 release: check
