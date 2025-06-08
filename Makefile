@@ -23,6 +23,7 @@ test: build
 		-l test/bfepm-test.el \
 		-l test/bfepm-config-test.el \
 		-l test/bfepm-utils-test.el \
+		-l test/bfepm-ui-test-simple.el \
 		-f ert-run-tests-batch-and-exit
 
 # Clean compiled files
@@ -75,6 +76,7 @@ test-coverage:
 		-l test/bfepm-test.el \
 		-l test/bfepm-config-test.el \
 		-l test/bfepm-utils-test.el \
+		-l test/bfepm-ui-test-simple.el \
 		-f ert-run-tests-batch-and-exit
 	@echo "Generating coverage report..."
 	$(EMACS) -batch -Q \
