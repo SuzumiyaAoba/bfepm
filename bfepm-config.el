@@ -22,16 +22,25 @@
    (message "Warning: TOML parser not available - TOML config files will not be supported")
    (setq bfepm-config--toml-available nil)))
 
+;; Declare external functions to avoid compilation warnings
+(declare-function toml:read-from-file "toml")
+
 (defvar bfepm-config--default-sources
-  '(("melpa" . ((url . "https://melpa.org/packages/")
-                (type . "elpa")
-                (priority . 10)))
-    ("gnu" . ((url . "https://elpa.gnu.org/packages/")
-              (type . "elpa")
-              (priority . 5)))
-    ("melpa-stable" . ((url . "https://stable.melpa.org/packages/")
-                       (type . "elpa")
-                       (priority . 7))))
+  `(("melpa" . ,(make-bfepm-source
+                 :name "melpa"
+                 :url "https://melpa.org/packages/"
+                 :type "elpa"
+                 :priority 10))
+    ("gnu" . ,(make-bfepm-source
+               :name "gnu"
+               :url "https://elpa.gnu.org/packages/"
+               :type "elpa"
+               :priority 5))
+    ("melpa-stable" . ,(make-bfepm-source
+                        :name "melpa-stable"
+                        :url "https://stable.melpa.org/packages/"
+                        :type "elpa"
+                        :priority 7)))
   "Default package sources.")
 
 (defun bfepm-config-load (file)
@@ -52,7 +61,7 @@
         
         (make-bfepm-config
          :packages packages
-         :sources (or sources (bfepm-config--default-sources))))
+         :sources (or sources bfepm-config--default-sources)))
     (error "TOML parser not available - cannot parse config file")))
 
 (defun bfepm-config--parse-packages (packages-data)
@@ -105,7 +114,7 @@
   "Create a default BFEPM configuration."
   (make-bfepm-config
    :packages nil
-   :sources (bfepm-config--default-sources)))
+   :sources bfepm-config--default-sources))
 
 (defun bfepm-config-save (config file)
   "Save BFEPM CONFIG to TOML FILE."

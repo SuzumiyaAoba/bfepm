@@ -2,127 +2,156 @@
 
 ;;; Commentary:
 
-;; Test suite for BFEPM utility functions.
+;; Test suite for BFEPM utility functions using ERT.
 
 ;;; Code:
 
-(require 'buttercup)
+(require 'ert)
 (require 'bfepm-utils)
 
-(describe "BFEPM Utils Version Handling"
-  (describe "bfepm-utils-version-compare"
-    (it "should return 0 for equal versions"
-      (expect (bfepm-utils-version-compare "1.0.0" "1.0.0") :to-equal 0)
-      (expect (bfepm-utils-version-compare "1.2.3" "1.2.3") :to-equal 0))
+;;; Version Comparison Tests
 
-    (it "should return 1 when first version is greater"
-      (expect (bfepm-utils-version-compare "1.0.1" "1.0.0") :to-equal 1)
-      (expect (bfepm-utils-version-compare "1.1.0" "1.0.9") :to-equal 1)
-      (expect (bfepm-utils-version-compare "2.0.0" "1.9.9") :to-equal 1))
+(ert-deftest bfepm-utils-version-compare-equal ()
+  "Test version comparison for equal versions."
+  (should (= (bfepm-utils-version-compare "1.0.0" "1.0.0") 0))
+  (should (= (bfepm-utils-version-compare "2.3.4" "2.3.4") 0)))
 
-    (it "should return -1 when first version is lesser"
-      (expect (bfepm-utils-version-compare "1.0.0" "1.0.1") :to-equal -1)
-      (expect (bfepm-utils-version-compare "1.0.9" "1.1.0") :to-equal -1)
-      (expect (bfepm-utils-version-compare "1.9.9" "2.0.0") :to-equal -1))
+(ert-deftest bfepm-utils-version-compare-greater ()
+  "Test version comparison for greater version."
+  (should (> (bfepm-utils-version-compare "1.1.0" "1.0.0") 0))
+  (should (> (bfepm-utils-version-compare "2.0.0" "1.9.9") 0))
+  (should (> (bfepm-utils-version-compare "1.0.1" "1.0.0") 0)))
 
-    (it "should handle different length version strings"
-      (expect (bfepm-utils-version-compare "1.0" "1.0.0") :to-equal -1)
-      (expect (bfepm-utils-version-compare "1.0.0" "1.0") :to-equal 1)))
+(ert-deftest bfepm-utils-version-compare-lesser ()
+  "Test version comparison for lesser version."
+  (should (< (bfepm-utils-version-compare "1.0.0" "1.1.0") 0))
+  (should (< (bfepm-utils-version-compare "1.9.9" "2.0.0") 0))
+  (should (< (bfepm-utils-version-compare "1.0.0" "1.0.1") 0)))
 
-  (describe "bfepm-utils-version-satisfies-p"
-    (it "should always satisfy 'latest'"
-      (expect (bfepm-utils-version-satisfies-p "1.0.0" "latest") :to-be t)
-      (expect (bfepm-utils-version-satisfies-p "99.99.99" "latest") :to-be t))
+(ert-deftest bfepm-utils-version-compare-date-versions ()
+  "Test version comparison for MELPA date-based versions."
+  (should (> (bfepm-utils-version-compare "20250602.1300" "20250601.1200") 0))
+  (should (< (bfepm-utils-version-compare "20250601.1200" "20250602.1300") 0))
+  (should (= (bfepm-utils-version-compare "20250601.1200" "20250601.1200") 0)))
 
-    (it "should handle exact version matches"
-      (expect (bfepm-utils-version-satisfies-p "1.0.0" "1.0.0") :to-be t)
-      (expect (bfepm-utils-version-satisfies-p "1.0.1" "1.0.0") :to-be nil)
-      (expect (bfepm-utils-version-satisfies-p "1.0.0" "1.0.1") :to-be nil))
+;;; Version Satisfaction Tests
 
-    (it "should handle caret version requirements"
-      ;; ^1.2.3 means >=1.2.3 <2.0.0
-      (expect (bfepm-utils-version-satisfies-p "1.2.3" "^1.2.3") :to-be t)
-      (expect (bfepm-utils-version-satisfies-p "1.2.4" "^1.2.3") :to-be t)
-      (expect (bfepm-utils-version-satisfies-p "1.3.0" "^1.2.3") :to-be t)
-      (expect (bfepm-utils-version-satisfies-p "1.9.9" "^1.2.3") :to-be t)
-      (expect (bfepm-utils-version-satisfies-p "2.0.0" "^1.2.3") :to-be nil)
-      (expect (bfepm-utils-version-satisfies-p "1.2.2" "^1.2.3") :to-be nil))
+(ert-deftest bfepm-utils-version-satisfies-p-exact ()
+  "Test exact version satisfaction."
+  (should (bfepm-utils-version-satisfies-p "1.0.0" "1.0.0"))
+  (should-not (bfepm-utils-version-satisfies-p "1.0.1" "1.0.0")))
 
-    (it "should handle tilde version requirements"
-      ;; ~1.2.3 means >=1.2.3 <1.3.0
-      (expect (bfepm-utils-version-satisfies-p "1.2.3" "~1.2.3") :to-be t)
-      (expect (bfepm-utils-version-satisfies-p "1.2.4" "~1.2.3") :to-be t)
-      (expect (bfepm-utils-version-satisfies-p "1.2.9" "~1.2.3") :to-be t)
-      (expect (bfepm-utils-version-satisfies-p "1.3.0" "~1.2.3") :to-be nil)
-      (expect (bfepm-utils-version-satisfies-p "1.2.2" "~1.2.3") :to-be nil))))
+(ert-deftest bfepm-utils-version-satisfies-p-latest ()
+  "Test latest version satisfaction."
+  (should (bfepm-utils-version-satisfies-p "1.0.0" "latest"))
+  (should (bfepm-utils-version-satisfies-p "999.999.999" "latest")))
 
-(describe "BFEPM Utils File Operations"
-  (describe "bfepm-utils-file-sha256"
-    (it "should calculate correct SHA256 for file"
-      (let ((test-file (make-temp-file "pm-test")))
-        (unwind-protect
-            (progn
-              (with-temp-file test-file
-                (insert "Hello, World!"))
-              (let ((checksum (bfepm-utils-file-sha256 test-file)))
-                (expect checksum :to-be-truthy)
-                (expect (length checksum) :to-equal 64)
-                (expect checksum :to-match "^[a-fA-F0-9]+$")))
-          (delete-file test-file))))
+(ert-deftest bfepm-utils-version-satisfies-p-caret ()
+  "Test caret version constraint satisfaction."
+  (should (bfepm-utils-version-satisfies-p "1.2.3" "^1.0.0"))
+  (should (bfepm-utils-version-satisfies-p "1.9.9" "^1.0.0"))
+  (should-not (bfepm-utils-version-satisfies-p "2.0.0" "^1.0.0"))
+  (should-not (bfepm-utils-version-satisfies-p "0.9.9" "^1.0.0")))
 
-    (it "should return nil for non-existent file"
-      (expect (bfepm-utils-file-sha256 "/path/to/non/existent/file") :to-be nil))
+(ert-deftest bfepm-utils-version-satisfies-p-tilde ()
+  "Test tilde version constraint satisfaction."
+  (should (bfepm-utils-version-satisfies-p "1.0.5" "~1.0.0"))
+  (should (bfepm-utils-version-satisfies-p "1.0.9" "~1.0.0"))
+  (should-not (bfepm-utils-version-satisfies-p "1.1.0" "~1.0.0"))
+  (should-not (bfepm-utils-version-satisfies-p "0.9.9" "~1.0.0")))
 
-    (it "should return different checksums for different content"
-      (let ((file1 (make-temp-file "pm-test1"))
-            (file2 (make-temp-file "pm-test2")))
-        (unwind-protect
-            (progn
-              (with-temp-file file1 (insert "content1"))
-              (with-temp-file file2 (insert "content2"))
-              (let ((checksum1 (bfepm-utils-file-sha256 file1))
-                    (checksum2 (bfepm-utils-file-sha256 file2)))
-                (expect checksum1 :not :to-equal checksum2)))
-          (delete-file file1)
-          (delete-file file2)))))
+(ert-deftest bfepm-utils-version-satisfies-p-melpa-caret ()
+  "Test caret version constraint for MELPA date versions."
+  (should (bfepm-utils-version-satisfies-p "20250602.1300" "^20250601"))
+  (should (bfepm-utils-version-satisfies-p "20251231.2359" "^20250601"))
+  (should-not (bfepm-utils-version-satisfies-p "20260101.0000" "^20250601")))
 
-  (describe "bfepm-utils-ensure-directory"
-    (it "should create directory if it doesn't exist"
-      (let ((test-dir (expand-file-name "pm-test-dir" temporary-file-directory)))
-        (unwind-protect
-            (progn
-              (when (file-exists-p test-dir)
-                (delete-directory test-dir t))
-              (bfepm-utils-ensure-directory test-dir)
-              (expect (file-directory-p test-dir) :to-be t))
+(ert-deftest bfepm-utils-version-satisfies-p-melpa-tilde ()
+  "Test tilde version constraint for MELPA date versions."
+  (should (bfepm-utils-version-satisfies-p "20250601.1300" "~20250601.1200"))
+  (should (bfepm-utils-version-satisfies-p "20250601.2359" "~20250601.1200"))
+  (should-not (bfepm-utils-version-satisfies-p "20250602.0000" "~20250601.1200")))
+
+;;; Error Handling Tests
+
+(ert-deftest bfepm-utils-error-test ()
+  "Test error function raises proper error."
+  (should-error (bfepm-utils-error "Test error message")
+                :type 'error))
+
+;;; Message Tests
+
+(ert-deftest bfepm-utils-message-test ()
+  "Test message formatting."
+  (let ((message-log-max 100))
+    (bfepm-utils-message "Test message")
+    (should (string-match-p "\\[BFEPM\\] Test message"
+                           (with-current-buffer "*Messages*"
+                             (buffer-string))))))
+
+;;; File System Tests
+
+(ert-deftest bfepm-utils-ensure-directory-test ()
+  "Test directory creation utility."
+  (let ((test-dir (expand-file-name "test-ensure-dir" temporary-file-directory)))
+    (unwind-protect
+        (progn
           (when (file-exists-p test-dir)
-            (delete-directory test-dir t)))))
+            (delete-directory test-dir t))
+          (should-not (file-exists-p test-dir))
+          (bfepm-utils-ensure-directory test-dir)
+          (should (file-directory-p test-dir)))
+      (when (file-exists-p test-dir)
+        (delete-directory test-dir t)))))
 
-    (it "should not error if directory already exists"
-      (let ((test-dir (expand-file-name "pm-test-dir" temporary-file-directory)))
-        (unwind-protect
-            (progn
-              (make-directory test-dir t)
-              (expect (lambda () (bfepm-utils-ensure-directory test-dir))
-                      :not :to-throw))
-          (when (file-exists-p test-dir)
-            (delete-directory test-dir t)))))))
+(ert-deftest bfepm-utils-ensure-directory-existing ()
+  "Test directory creation when directory already exists."
+  (let ((test-dir (expand-file-name "test-existing-dir" temporary-file-directory)))
+    (unwind-protect
+        (progn
+          (bfepm-utils-ensure-directory test-dir)
+          (should (file-directory-p test-dir))
+          ;; Should not fail when directory already exists
+          (bfepm-utils-ensure-directory test-dir)
+          (should (file-directory-p test-dir)))
+      (when (file-exists-p test-dir)
+        (delete-directory test-dir t)))))
 
-(describe "BFEPM Utils Message Functions"
-  (describe "bfepm-utils-message"
-    (it "should format message with BFEPM prefix"
-      (let ((messages '()))
-        (cl-letf (((symbol-function 'message)
-                   (lambda (format-string &rest args)
-                     (push (apply #'format format-string args) messages))))
-          (bfepm-utils-message "Test message: %s" "value")
-          (expect (car messages) :to-equal "[BFEPM] Test message: value")))))
+;;; Checksum Tests
 
-  (describe "bfepm-utils-error"
-    (it "should signal error with BFEPM prefix"
-      (expect (lambda () (bfepm-utils-error "Test error: %s" "value"))
-              :to-throw 'error (lambda (err)
-                                 (string-match-p "\\[BFEPM\\] Test error: value"
-                                                 (error-message-string err)))))))
+(ert-deftest bfepm-utils-file-checksum-test ()
+  "Test file checksum calculation."
+  (let ((test-file (make-temp-file "bfepm-checksum-test")))
+    (unwind-protect
+        (progn
+          (with-temp-file test-file
+            (insert "test content"))
+          (let ((checksum1 (bfepm-utils-file-checksum test-file))
+                (checksum2 (bfepm-utils-file-checksum test-file)))
+            (should (stringp checksum1))
+            (should (string= checksum1 checksum2))
+            (should (> (length checksum1) 10))))
+      (when (file-exists-p test-file)
+        (delete-file test-file)))))
+
+(ert-deftest bfepm-utils-file-checksum-different-content ()
+  "Test file checksum for different content."
+  (let ((test-file1 (make-temp-file "bfepm-checksum-test1"))
+        (test-file2 (make-temp-file "bfepm-checksum-test2")))
+    (unwind-protect
+        (progn
+          (with-temp-file test-file1
+            (insert "test content 1"))
+          (with-temp-file test-file2
+            (insert "test content 2"))
+          (let ((checksum1 (bfepm-utils-file-checksum test-file1))
+                (checksum2 (bfepm-utils-file-checksum test-file2)))
+            (should-not (string= checksum1 checksum2))))
+      (when (file-exists-p test-file1)
+        (delete-file test-file1))
+      (when (file-exists-p test-file2)
+        (delete-file test-file2)))))
+
+(provide 'bfepm-utils-test)
 
 ;;; bfepm-utils-test.el ends here

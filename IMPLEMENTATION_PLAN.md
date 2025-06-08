@@ -381,7 +381,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        emacs-version: [26.3, 27.2, 28.2, 29.1]
+        emacs-version: [29.1, 29.2, 29.3, 29.4]
     steps:
       - uses: actions/checkout@v2
       - uses: purcell/setup-emacs@master

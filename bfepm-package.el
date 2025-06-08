@@ -75,7 +75,8 @@
 
 (defun bfepm-package-install (package-spec)
   "Install package specified by PACKAGE-SPEC.
-PACKAGE-SPEC can be a string (package name), a list (name version), or a bfepm-package structure."
+PACKAGE-SPEC can be a string (package name), a list (name version),
+or a bfepm-package structure."
   (let* ((package (cond
                    ((stringp package-spec)
                     (make-bfepm-package :name package-spec :version "latest"))
@@ -84,30 +85,29 @@ PACKAGE-SPEC can be a string (package name), a list (name version), or a bfepm-p
                    (t package-spec)))
          (config (bfepm-core-get-config)))
     
-    (bfepm-utils-message "Installing package: %s" (bfepm-package-name package))
-    
     ;; Check if already installed
-    (when (bfepm-core-package-installed-p (bfepm-package-name package))
-      (bfepm-utils-message "Package %s already installed" (bfepm-package-name package))
-      (return))
-    
-    ;; Find package in sources
-    (let ((package-info (bfepm-package--find-package package config)))
-      (unless package-info
-        (bfepm-utils-error "Package not found: %s" (bfepm-package-name package)))
-      
-      ;; Validate version if specified
-      (when (and (not (string= (bfepm-package-version package) "latest"))
-                 package-info)
-        (let* ((info-list (if (vectorp package-info) (append package-info nil) package-info))
-               (available-version (bfepm-package--format-version (car info-list)))
-               (requested-version (bfepm-package-version package)))
-          (unless (bfepm-package--version-matches-p available-version requested-version)
-            (bfepm-utils-message "Warning: Requested version %s not available. Latest is %s" 
-                              requested-version available-version))))
-      
-      ;; Download and install
-      (bfepm-package--download-and-install package package-info))))
+    (if (bfepm-core-package-installed-p (bfepm-package-name package))
+        (bfepm-utils-message "Package %s already installed" (bfepm-package-name package))
+      (progn
+        (bfepm-utils-message "Installing package: %s" (bfepm-package-name package))
+        
+        ;; Find package in sources
+        (let ((package-info (bfepm-package--find-package package config)))
+          (unless package-info
+            (bfepm-utils-error "Package not found: %s" (bfepm-package-name package)))
+          
+          ;; Validate version if specified
+          (when (and (not (string= (bfepm-package-version package) "latest"))
+                     package-info)
+            (let* ((info-list (if (vectorp package-info) (append package-info nil) package-info))
+                   (available-version (bfepm-package--format-version (car info-list)))
+                   (requested-version (bfepm-package-version package)))
+              (unless (bfepm-package--version-matches-p available-version requested-version)
+                (bfepm-utils-message "Warning: Requested version %s not available. Latest is %s" 
+                                  requested-version available-version))))
+          
+          ;; Download and install
+          (bfepm-package--download-and-install package package-info))))))
 
 (defun bfepm-package--find-package (package config)
   "Find PACKAGE in available sources from CONFIG."
@@ -147,6 +147,12 @@ PACKAGE-SPEC can be a string (package name), a list (name version), or a bfepm-p
           (push (cons cache-key contents) bfepm-package--archive-cache)
           contents))))
 
+(defun bfepm-package--find-in-git (package-name source)
+  "Find PACKAGE-NAME in git SOURCE."
+  ;; Stub implementation - would implement git-based package discovery
+  (bfepm-utils-error "Git source support not yet implemented for %s from %s" 
+                     package-name source))
+
 (defun bfepm-package--fetch-archive-contents (archive-url)
   "Fetch archive contents from ARCHIVE-URL."
   (let ((archive-file (concat archive-url "archive-contents")))
@@ -162,7 +168,7 @@ PACKAGE-SPEC can be a string (package name), a list (name version), or a bfepm-p
          (info-list (if (vectorp package-info) (append package-info nil) package-info))
          (version (car info-list))
          (deps (cadr info-list))
-         (desc (caddr info-list))
+         (_desc (caddr info-list))
          (kind (cadddr info-list))
          (version-string (bfepm-package--format-version version))
          (archive-file (bfepm-package--build-archive-url package-name version-string kind))

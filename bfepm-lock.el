@@ -8,6 +8,9 @@
 
 (require 'bfepm-core)
 (require 'bfepm-utils)
+
+;; Declare external functions to avoid compilation warnings
+(declare-function bfepm-package-install "bfepm-package")
 ;; bfepm-config is optional - structures are defined in bfepm-core
 
 (defvar bfepm-lock-file-name "bfepm.lock"
@@ -29,7 +32,7 @@
 
 (defun bfepm-lock-generate ()
   "Generate lock file from current installed packages."
-  (let* ((config (bfepm-core-get-config))
+  (let* ((_config (bfepm-core-get-config))
          (installed-packages (bfepm-core-get-installed-packages))
          (lock-packages (bfepm-lock--build-package-entries installed-packages))
          (lock (make-bfepm-lock
@@ -80,7 +83,7 @@
         (goto-char (point-max)))
       (secure-hash 'sha256 (current-buffer)))))
 
-(defun bfepm-lock--detect-dependencies (package-dir)
+(defun bfepm-lock--detect-dependencies (_package-dir)
   "Detect dependencies for package in PACKAGE-DIR."
   ;; Simplified - would parse package files for actual dependencies
   '())
@@ -91,7 +94,7 @@
     (generated . ,(format-time-string "%Y-%m-%dT%H:%M:%SZ" (current-time)))
     (bfepm-version . "0.1.0")))
 
-(defun bfepm-lock--create-resolution (packages)
+(defun bfepm-lock--create-resolution (_packages)
   "Create resolution section for lock file."
   `((strategy . "conservative")
     (conflicts . ())
@@ -154,7 +157,7 @@
            (bfepm-utils-error "Failed to load lock file %s: %s" lock-file err)))
       nil)))
 
-(defun bfepm-lock--parse-toml-file (file)
+(defun bfepm-lock--parse-toml-file (_file)
   "Parse TOML lock FILE and return bfepm-lock structure."
   ;; This would use a proper TOML parser
   ;; For now, just return a basic structure

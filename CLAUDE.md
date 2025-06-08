@@ -6,35 +6,47 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Building and Testing
 ```bash
-# Install dependencies
+# Install dependencies using Keg
 make install
 
 # Build the project
 make build
 
-# Run tests
+# Run tests with ERT
 make test
 
-# Run linting
+# Run linting (package-lint + checkdoc)
 make lint
 
 # Compile Emacs Lisp files
 make compile
 
-# Full check (lint + test)
+# Full check (compile + lint + test)
 make check
+
+# Test with coverage reporting
+make test-coverage
 ```
 
 ### Package Management
 ```bash
-# Install dependencies via Cask
-cask install
+# Install dependencies via Keg
+keg install
 
-# Run tests via Cask
-cask exec buttercup -L .
+# Run tests with ERT
+emacs -batch -L . -L test \
+  --eval "(require 'ert)" \
+  -l test/bfepm-test.el \
+  -f ert-run-tests-batch-and-exit
 
 # Byte-compile all files
-cask exec emacs -batch -L . -f batch-byte-compile *.el
+emacs -batch -L . -f batch-byte-compile *.el
+
+# Package linting
+emacs -batch -L . \
+  --eval "(require 'package-lint)" \
+  --eval "(package-lint-batch-and-exit)" \
+  bfepm.el
 ```
 
 ## Architecture Overview
@@ -80,14 +92,18 @@ bfepm uses TOML for configuration with support for:
 4. **Profile Support**: Different configurations for different use cases
 
 ### Testing Strategy
-- **buttercup**: BDD-style testing framework
-- **Unit Tests**: Test individual functions and data structures
-- **Integration Tests**: Test component interactions
-- **Mock-friendly**: Utilities designed for easy testing
+- **ERT**: Emacs standard testing framework for robust test execution
+- **Unit Tests**: Test individual functions and data structures with `ert-deftest`
+- **Integration Tests**: Test component interactions and workflows
+- **Coverage Reporting**: Using undercover.el for test coverage analysis
+- **Mock-friendly**: Utilities designed for easy testing and isolation
 
 When working with this codebase:
 - Follow existing naming conventions (bfepm- prefix for all functions)
-- Use cl-defstruct for data structures
+- Use cl-defstruct for data structures  
 - Include comprehensive error handling with bfepm-utils-error
-- Add docstrings to all public functions
-- Write tests for new functionality using buttercup
+- Add docstrings to all public functions (checkdoc compliant)
+- Write tests for new functionality using ERT (`ert-deftest`)
+- Ensure lexical binding is enabled (`-*- lexical-binding: t -*-`)
+- Run `make check` before committing changes
+- Maintain test coverage above 80% when possible

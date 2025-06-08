@@ -16,7 +16,7 @@ bfepm is a package manager for Emacs that provides simple and reliable package i
 
 bfepm requires:
 
-- Emacs 26.1 or later
+- Emacs 29.1 or later
 - toml.el (optional, for full TOML parsing - automatically falls back to minimal parser if not available)
 
 **Note**: bfepm works without any external dependencies. If toml.el is not available, bfepm uses its built-in minimal configuration system.

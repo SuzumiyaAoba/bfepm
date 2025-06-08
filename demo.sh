@@ -1,9 +1,9 @@
 #!/bin/bash
-# EPM Demo Script
+# BFEPM Demo Script
 set -e
 
-echo "EPM Demo Environment"
-echo "==================="
+echo "BFEPM Demo Environment"
+echo "======================"
 
 # Create temporary directory for demo
 DEMO_DIR=$(mktemp -d)
@@ -21,11 +21,11 @@ echo ""
 echo "✅ Demo environment created at: $DEMO_DIR"
 echo ""
 echo "📋 Available sample configurations:"
-if [ -f "$DEMO_DIR/sample/minimal.toml" ]; then
-  echo "  - sample/minimal.toml     (Basic setup)"
+if [ -f "$DEMO_DIR/sample/bfepm.toml" ]; then
+  echo "  - sample/bfepm.toml     (Basic setup)"
 fi
 echo ""
-echo "🚀 Starting EPM Interactive Demo..."
+echo "🚀 Starting BFEPM Interactive Demo..."
 echo "======================================"
 echo ""
 echo "Available commands in Emacs:"
@@ -43,7 +43,7 @@ echo ""
 cd "$DEMO_DIR"
 
 # Start Emacs in terminal mode with demo configuration
-echo "🚀 Starting Emacs with EPM demo..."
+echo "🚀 Starting Emacs with BFEPM demo..."
 emacs -nw -Q -L . -l sample/demo-init.el || {
   echo ""
   echo "📋 Emacs exited. Demo completed."

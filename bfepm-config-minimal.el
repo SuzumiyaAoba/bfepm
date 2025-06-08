@@ -10,15 +10,21 @@
 (require 'bfepm-utils)
 
 (defvar bfepm-config--default-sources
-  '(("melpa" . ((url . "https://melpa.org/packages/")
-                (type . "elpa")
-                (priority . 10)))
-    ("gnu" . ((url . "https://elpa.gnu.org/packages/")
-              (type . "elpa")
-              (priority . 5)))
-    ("melpa-stable" . ((url . "https://stable.melpa.org/packages/")
-                       (type . "elpa")
-                       (priority . 7))))
+  `(("melpa" . ,(make-bfepm-source
+                 :name "melpa"
+                 :url "https://melpa.org/packages/"
+                 :type "elpa"
+                 :priority 10))
+    ("gnu" . ,(make-bfepm-source
+               :name "gnu"
+               :url "https://elpa.gnu.org/packages/"
+               :type "elpa"
+               :priority 5))
+    ("melpa-stable" . ,(make-bfepm-source
+                        :name "melpa-stable"
+                        :url "https://stable.melpa.org/packages/"
+                        :type "elpa"
+                        :priority 7)))
   "Default package sources.")
 
 (defun bfepm-config-create-default ()
@@ -54,7 +60,7 @@
   ;; A more sophisticated version could implement basic TOML parsing
   (bfepm-config-create-default))
 
-(defun bfepm-config-save (config file)
+(defun bfepm-config-save (_config file)
   "Save CONFIG to FILE (minimal version - creates basic template)."
   (bfepm-utils-message "Saving configuration to %s (minimal version)" file)
   (with-temp-buffer

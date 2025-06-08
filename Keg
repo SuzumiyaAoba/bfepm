@@ -1,0 +1,24 @@
+;; -*- mode: emacs-lisp; lexical-binding: t -*-
+
+;; BFEPM - Better Fast Emacs Package Manager
+;; Package definition file for Keg
+
+(source gnu)
+(source melpa)
+
+;; Package file
+(package-file "bfepm.el")
+
+;; Runtime dependencies
+(depends-on "emacs" "29.1")
+
+;; Optional dependencies for enhanced functionality
+(depends-on "toml" "0.1.0")
+(depends-on "async" "1.9.4")
+
+;; Development dependencies
+(development
+ (depends-on "keg")
+ (depends-on "ert-runner")
+ (depends-on "package-lint")
+ (depends-on "undercover"))
