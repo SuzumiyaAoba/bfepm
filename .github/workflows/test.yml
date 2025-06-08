@@ -45,13 +45,13 @@ jobs:
 
       - name: Byte compile
         run: |
-          emacs -batch -L . \
+          emacs -batch -L lisp \
             --eval "(setq byte-compile-error-on-warn t)" \
-            -f batch-byte-compile ./*.el
+            -f batch-byte-compile lisp/*.el
 
       - name: Run tests
         run: |
-          emacs -batch -L . -L test \
+          emacs -batch -L lisp -L test \
             --eval "(require 'ert)" \
             --eval "(setq ert-batch-backtrace-right-margin 200)" \
             -l test/bfepm-test.el \
@@ -61,7 +61,7 @@ jobs:
 
       - name: Package lint
         run: |
-          emacs -batch -L . \
+          emacs -batch -L lisp \
             --eval "(require 'package)" \
             --eval "(add-to-list 'package-archives '(\"melpa\" . \"https://melpa.org/packages/\") t)" \
             --eval "(package-initialize)" \
@@ -69,17 +69,17 @@ jobs:
             --eval "(package-install 'package-lint)" \
             --eval "(require 'package-lint)" \
             --eval "(package-lint-batch-and-exit)" \
-            bfepm.el
+            lisp/bfepm.el
 
       - name: Checkdoc
         run: |
-          emacs -batch -L . \
-            --eval "(checkdoc-file \"bfepm.el\")" \
-            --eval "(checkdoc-file \"bfepm-core.el\")" \
-            --eval "(checkdoc-file \"bfepm-config.el\")" \
-            --eval "(checkdoc-file \"bfepm-utils.el\")" \
-            --eval "(checkdoc-file \"bfepm-package.el\")" \
-            --eval "(checkdoc-file \"bfepm-lock.el\")"
+          emacs -batch -L lisp \
+            --eval "(checkdoc-file \"lisp/bfepm.el\")" \
+            --eval "(checkdoc-file \"lisp/bfepm-core.el\")" \
+            --eval "(checkdoc-file \"lisp/bfepm-config.el\")" \
+            --eval "(checkdoc-file \"lisp/bfepm-utils.el\")" \
+            --eval "(checkdoc-file \"lisp/bfepm-package.el\")" \
+            --eval "(checkdoc-file \"lisp/bfepm-lock.el\")"
 
   test-with-coverage:
     runs-on: ubuntu-latest
@@ -110,10 +110,12 @@ jobs:
         env:
           COVERALLS_REPO_TOKEN: dummy
         run: |
-          emacs -batch -L . -L test \
+          # Remove compiled files to ensure source code coverage
+          rm -f lisp/*.elc coverage-final.json
+          emacs -batch -L lisp -L test \
             -l ~/.emacs.d/init.el \
             --eval "(require 'undercover)" \
-            --eval "(undercover \"*.el\" (:exclude \"test/*.el\") (:report-format 'codecov))" \
+            --eval "(undercover \"lisp/bfepm.el\" \"lisp/bfepm-core.el\" \"lisp/bfepm-config.el\" \"lisp/bfepm-config-minimal.el\" \"lisp/bfepm-package.el\" \"lisp/bfepm-utils.el\" \"lisp/bfepm-lock.el\" (:exclude \"test/*.el\") (:report-format 'codecov) (:report-file \"coverage-final.json\") (:send-report nil))" \
             --eval "(require 'ert)" \
             -l test/bfepm-test.el \
             -l test/bfepm-config-test.el \
