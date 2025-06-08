@@ -1,499 +1,272 @@
-# bfepm - Better Fast Emacs Package Manager
+# bfepm: Better Fast Emacs Package Manager
 
-bfepm is a package manager for Emacs that provides simple and reliable package installation.
+A modern, declarative package manager for Emacs that emphasizes simplicity, speed, and reliability.
 
-## Features
+## ⚠️ Development Status
 
-- **Declarative Configuration**: Centralized management with TOML configuration files
-- **Version Management**: Support for version constraints (exact, compatible, patch-level)
-- **Multiple Sources**: Support for MELPA, GNU ELPA, and MELPA Stable
-- **Dependency Resolution**: Automatic dependency resolution and installation
-- **Simple Installation**: Focus on package installation without configuration management
+**Current Version**: v0.1.0-alpha (Development Phase)
 
-## Installation
+bfepm is currently in active development. Core functionality is implemented and tested, but not yet ready for production use.
 
-### Dependencies
+### 🎯 Current Status
+- ✅ Core foundation with data structures
+- ✅ Configuration loading (TOML + minimal fallback)
+- ✅ Basic package management operations
+- ✅ Comprehensive test suite (31 tests)
+- ✅ CI/CD pipeline
+- 🚧 Working on: Multi-source support and real package installation
+- 📋 Next: Dependency resolution and lock file improvements
 
-bfepm requires:
+See [Implementation Roadmap](docs/IMPLEMENTATION_ROADMAP.md) for detailed progress and plans.
 
-- Emacs 29.1 or later
-- toml.el (optional, for full TOML parsing - automatically falls back to minimal parser if not available)
+## 🌟 Planned Features
 
-**Note**: bfepm works without any external dependencies. If toml.el is not available, bfepm uses its built-in minimal configuration system.
+- **Declarative Configuration**: Single TOML file for all package management
+- **Lock Files**: Reproducible package installations across environments
+- **Multi-Source Support**: MELPA, GNU ELPA, Git repositories, and custom sources
+- **Fast Operations**: Optimized for performance with lazy loading
+- **Profile System**: Different configurations for different use cases
+- **Dependency Resolution**: Automatic conflict detection and resolution
 
-### Manual Installation
+## 🚀 Quick Start
+
+### Installation (Development)
 
 ```bash
+# Clone the repository
 git clone https://github.com/SuzumiyaAoba/bfepm.git
 cd bfepm
+
+# Install dependencies using Keg
 make install
+
+# Run tests to verify setup
+make test
 ```
 
-### Nix Installation (Recommended for Development)
+### Basic Usage (Preview)
 
-If you have [Nix](https://nixos.org/) installed with flakes enabled:
-
-```bash
-# Clone and enter development environment
-git clone https://github.com/SuzumiyaAoba/bfepm.git
-cd bfepm
-nix develop
-
-# Or run directly
-nix run github:SuzumiyaAoba/bfepm#demo
-```
-
-See [Nix Setup Guide](docs/nix-setup.md) for detailed instructions.
-
-## Basic Usage
-
-### Initialization
-
-Add the following to your Emacs configuration file (`init.el`):
-
-```elisp
-(add-to-list 'load-path "/path/to/bfepm")
-(require 'bfepm)
-(bfepm-init)
-```
-
-### Configuration File
-
-bfepm uses `~/.emacs.d/bfepm.toml` as its configuration file. See `sample/bfepm.toml` for a complete example with 25 popular packages.
+Create a `bfepm.toml` file in your Emacs directory:
 
 ```toml
-# Example bfepm.toml
+[packages]
+company = "latest"
+magit = "^3.3.0"
+lsp-mode = { version = "^8.0", optional = true }
 
-[meta]
-version = "1.0.0"
+[packages.company.config]
+company-idle-delay = 0.3
+company-minimum-prefix-length = 2
 
 [sources]
 melpa = { url = "https://melpa.org/packages/", priority = 10 }
 gnu = { url = "https://elpa.gnu.org/packages/", priority = 5 }
-melpa-stable = { url = "https://stable.melpa.org/packages/", priority = 7 }
-
-[packages]
-company = "latest"
-vertico = "^20250601"          # Compatible version
-consult = "~20250520.1200"     # Patch level
-marginalia = "20250515.800"    # Exact version
-magit = "latest"
-which-key = "latest"
 ```
 
-## Available Commands
-
-### Interactive Commands
-
-| Command | Description |
-|---------|-------------|
-| `M-x bfepm-install` | Install a package |
-| `M-x bfepm-remove` | Remove a package |
-| `M-x bfepm-update` | Update packages (all packages if no argument) |
-| `M-x bfepm-list` | List installed packages |
-| `M-x bfepm-init` | Initialize bfepm |
-
-### Package Management
-
-#### Installing Packages
+Load bfepm in your Emacs configuration:
 
 ```elisp
-;; Interactive
-M-x bfepm-install RET company RET
+;; Add bfepm to load path
+(add-to-list 'load-path "/path/to/bfepm/lisp")
 
-;; Programmatically
-(bfepm-install "company")
+;; Initialize bfepm
+(require 'bfepm)
+(bfepm-init)
+
+;; Interactive commands (planned)
+;; M-x bfepm-install
+;; M-x bfepm-update
+;; M-x bfepm-list
 ```
 
-#### Removing Packages
-
-```elisp
-;; Interactive
-M-x bfepm-remove RET company RET
-
-;; Programmatically
-(bfepm-remove "company")
-```
-
-#### Updating Packages
-
-```elisp
-;; Update specific package
-M-x bfepm-update RET company RET
-
-;; Update all packages
-M-x bfepm-update RET RET
-```
-
-#### Listing Installed Packages
-
-```elisp
-M-x bfepm-list
-```
-
-### Lock File Operations
-
-#### Generate Lock File
-
-```elisp
-(bfepm-lock-generate)
-```
-
-#### Install from Lock File
-
-```elisp
-(bfepm-lock-install)
-```
-
-#### Verify Lock File
-
-```elisp
-(bfepm-lock-verify)
-```
-
-## Configuration File Details
+## 📋 Configuration Format
 
 ### Package Specifications
 
-#### Basic Specifications
-
 ```toml
 [packages]
-company = "latest"             # Latest version
-vertico = "^20250601"          # Compatible version (>=20250601 <20260000)
-consult = "~20250520.1200"     # Patch level (>=20250520.1200 <20250521.0000)
-marginalia = "20250515.800"    # Exact version
-magit = "latest"               # Always get latest
-which-key = "latest"           # Popular utility package
+# Latest version
+company = "latest"
+
+# Specific version
+magit = "3.3.0"
+
+# Version constraint (semver)
+lsp-mode = "^8.0"      # Compatible with 8.x
+flycheck = "~32.0"     # Compatible with 32.x
+
+# Advanced configuration
+use-package = { version = "2.4.4", bootstrap = true, optional = false }
 ```
 
-#### Version Specifications for MELPA Packages
-
-bfepm supports MELPA's date-based versioning system:
+### Package Configuration
 
 ```toml
-[packages]
-# Exact date-time version
-company = "20250426.1319"
+[packages.company.config]
+company-idle-delay = 0.3
+company-backends = ["company-capf", "company-dabbrev"]
 
-# Compatible version - any version from this date forward (same year)
-vertico = "^20250601"          # >=20250601, <20260000
+[packages.company.keybinds]
+"C-n" = "company-select-next"
+"C-p" = "company-select-previous"
+"TAB" = "company-complete"
 
-# Patch level - same day, newer time allowed
-consult = "~20250520.1200"     # >=20250520.1200, <20250521.0000
-
-# Latest available
-orderless = "latest"
+[packages.company.hooks]
+after-init = "global-company-mode"
+prog-mode = "company-mode"
 ```
 
-### Package Sources
+### Profile System (Planned)
 
 ```toml
-[sources]
-melpa = { 
-  url = "https://melpa.org/packages/", 
-  type = "elpa", 
-  priority = 10 
-}
-gnu = { 
-  url = "https://elpa.gnu.org/packages/", 
-  type = "elpa", 
-  priority = 5 
-}
-my-repo = { 
-  url = "https://github.com/user/repo.git", 
-  type = "git", 
-  priority = 15 
-}
+[profiles]
+default = ["base"]
+development = ["base", "lsp", "debug"]
+writing = ["base", "org"]
+
+[profiles.development.packages]
+company = "latest"
+lsp-mode = "latest"
+flycheck = "latest"
 ```
 
-### Global Settings
+## 🏗️ Architecture
 
-```toml
-[global]
-auto-update = false         # Enable/disable auto-update
-parallel-downloads = 4      # Number of parallel downloads
-startup-timeout = 30        # Startup timeout (seconds)
-backup-before-update = true # Backup before updates
-```
-
-## File Structure
-
-bfepm uses the following directory structure:
+bfepm follows a modular, layered architecture:
 
 ```
-~/.emacs.d/
-├── bfepm.toml            # Main configuration file
-├── bfepm.lock            # Lock file
-└── bfepm/
-    ├── packages/         # Installed packages
-    │   ├── company/
-    │   ├── magit/
-    │   └── ...
-    ├── cache/            # Cache directory
-    │   ├── metadata/     # Package metadata
-    │   ├── downloads/    # Downloaded files
-    │   └── indices/      # Repository indices
-    └── logs/             # Log files
-        ├── install.log
-        ├── update.log
-        └── error.log
+User Interface Layer
+├── Interactive Commands (bfepm-install, bfepm-update, etc.)
+├── CLI Interface (planned)
+└── Configuration API
+
+Core Layer
+├── Package Management (bfepm-package.el)
+├── Configuration Management (bfepm-config.el)
+├── Dependency Resolution (planned)
+└── Profile Management (planned)
+
+Service Layer
+├── Source Management (planned)
+├── Download Manager (planned)
+├── Cache Manager (planned)
+└── Lock File Manager (bfepm-lock.el)
+
+Storage Layer
+├── File System Operations
+├── Package Registry
+└── Lock Files
 ```
 
-**Sample Files**: The repository includes `sample/bfepm.toml` with 25 popular packages and `sample/demo-init.el` for testing.
+### Current Modules
 
-## Quick Demo
+- **`lisp/bfepm.el`** - Main entry point and interactive commands
+- **`lisp/bfepm-core.el`** - Core functionality and data structures
+- **`lisp/bfepm-config.el`** - TOML configuration parsing
+- **`lisp/bfepm-config-minimal.el`** - Fallback configuration without TOML
+- **`lisp/bfepm-package.el`** - Package management operations
+- **`lisp/bfepm-utils.el`** - Utility functions and error handling
+- **`lisp/bfepm-lock.el`** - Lock file generation and management
 
-### Using Nix (Easiest)
+## 🧪 Development
 
-```bash
-# Interactive demo with sample configurations
-nix run github:SuzumiyaAoba/bfepm#demo
-
-# Or locally
-git clone https://github.com/SuzumiyaAoba/bfepm.git
-cd bfepm
-nix run .#demo
-```
-
-### Manual Demo
-
-```bash
-# Clone and test
-git clone https://github.com/SuzumiyaAoba/bfepm.git
-cd bfepm
-
-# Run sample test script
-./sample/test-script.sh
-
-# Or start Emacs with demo configuration
-emacs -Q -L . -l sample/demo-init.el
-# Then use: C-c e h (help), C-c e c (show config), C-c e M (mock install), C-c e l (list packages)
-# Demo uses sample/bfepm.toml with 25 popular packages
-```
-
-## Development
-
-### Build and Test
-
-#### Using Make
+### Building and Testing
 
 ```bash
 # Install dependencies
 make install
 
-# Build
+# Build project
 make build
 
-# Run tests
+# Run all tests
 make test
 
-# Lint
+# Run tests with coverage
+make test-coverage
+
+# Run linting
 make lint
 
-# Full check
+# Run all checks (compile + lint + test)
 make check
 ```
 
-#### Using Nix (Recommended)
+### Requirements
+
+- **Emacs**: 29.1+ (for built-in functions)
+- **Dependencies**: 
+  - `toml` package (optional, for TOML support)
+  - `async` package (planned, for async operations)
+- **Development Tools**: Keg package manager
+
+### Testing
+
+The project includes comprehensive tests using ERT (Emacs Regression Testing):
 
 ```bash
-# Enter development environment
-nix develop
+# Run specific test suite
+emacs -batch -L lisp -L test -l test/bfepm-test.el -f ert-run-tests-batch-and-exit
 
-# Run all checks
-nix flake check
-
-# Build package
-nix build
-
-# Run demo
-nix run .#demo
-
-# Run tests
-nix run .#test
+# Current test coverage: 31 tests across all modules
 ```
 
-### Dependency Management
+## 📚 Documentation
 
-bfepm uses Cask for managing development dependencies:
+- [Architecture Design](docs/ARCHITECTURE.md) - System architecture and component design
+- [Implementation Roadmap](docs/IMPLEMENTATION_ROADMAP.md) - Current status and future plans
+- [Concept Document](docs/CONCEPT.md) - Project vision and goals
+- [Legacy Implementation Plan](docs/IMPLEMENTATION_PLAN.md) - Original development plan
 
-```bash
-# Install dependencies with Cask
-cask install
+## 🤝 Contributing
 
-# Run tests
-cask exec buttercup -L .
-```
+bfepm is in active development and welcomes contributors!
 
-## Version Specifications
+### How to Contribute
 
-bfepm supports the following version specification formats:
+1. **Check the [Implementation Roadmap](docs/IMPLEMENTATION_ROADMAP.md)** for current priorities
+2. **Fork the repository** and create a feature branch
+3. **Follow the development workflow**:
+   ```bash
+   git checkout -b feature/your-feature
+   # Make changes
+   make test  # Ensure tests pass
+   make lint  # Check code style
+   ```
+4. **Add tests** for new functionality
+5. **Update documentation** as needed
+6. **Submit a pull request** with a clear description
 
-| Format | Description | Example |
-|--------|-------------|---------|
-| `latest` | Latest version | `"latest"` |
-| `x.y.z` | Exact match | `"1.2.3"` |
-| `^x.y.z` | Compatible version | `"^1.2.3"` (>=1.2.3 <2.0.0) |
-| `~x.y.z` | Patch level | `"~1.2.3"` (>=1.2.3 <1.3.0) |
+### Development Guidelines
 
-## Lock Files
-
-The lock file (`bfepm.lock`) records the exact versions and checksums of installed packages:
-
-```toml
-[meta]
-version = "1.0.0"
-generated = "2024-01-15T12:30:00Z"
-bfepm-version = "0.1.0"
-
-[packages.company]
-version = "0.9.13"
-source = "melpa"
-checksum = "sha256:abc123..."
-dependencies = ["cl-lib"]
-
-[packages.company.dependencies.cl-lib]
-version = "0.6.1"
-source = "gnu"
-checksum = "sha256:def456..."
-```
-
-## Troubleshooting
-
-### Common Issues
-
-#### TOML Configuration Issues
-
-If you see warnings about "bfepm-config module not loaded":
-
-1. **Full TOML Support**: Install `toml.el` package for complete TOML parsing
-2. **Minimal Mode**: EPM automatically falls back to minimal configuration parser
-3. **Check Status**: Use `M-x bfepm-demo-show-config` in demo mode to verify configuration loading
-
-```elisp
-;; Check which configuration module is loaded
-(featurep 'bfepm-config)         ; Full TOML support
-(featurep 'bfepm-config-minimal) ; Minimal parser (fallback)
-```
-
-#### Package Installation Fails
-
-1. Check network connectivity
-2. Verify package source URLs are correct
-3. Check log files (`~/.emacs.d/bfepm/logs/error.log`)
-4. Test with demo mode: `emacs -Q -L . -l sample/demo-init.el`
-
-#### Configuration File Issues
-
-```elisp
-;; Check configuration status
-(bfepm-demo-show-config)
-
-;; Verify configuration file exists
-(file-exists-p bfepm-config-file)
-```
-
-#### Dependency Conflicts
-
-```elisp
-;; Check dependencies
-(bfepm-package-info "package-name")
-```
-
-#### Demo Mode for Testing
-
-```bash
-# Safe testing environment with sample configuration
-emacs -Q -L . -l sample/demo-init.el
-
-# Key commands in demo:
-# C-c e h  - Show help
-# C-c e M  - Mock install packages (safe)
-# C-c e c  - Show configuration status
-# C-c e l  - List installed packages
-```
-
-## Current Limitations
-
-The current version (v0.1.0) has the following limitations:
-
-- Profile functionality is not yet implemented
-- Asynchronous downloads are partially implemented
-- Package search functionality is not implemented
-- CLI tools are not implemented
-
-## API Reference
-
-### Core Functions
-
-#### `bfepm-install (package-spec)`
-Install a package specified by PACKAGE-SPEC.
-
-#### `bfepm-remove (package-name)`
-Remove the specified package.
-
-#### `bfepm-update (&optional package-name)`
-Update a specific package or all packages if no argument is provided.
-
-#### `bfepm-list ()`
-List all installed packages.
-
-#### `bfepm-init ()`
-Initialize bfepm in the current Emacs session.
-
-### Configuration Functions
-
-#### `bfepm-config-load (file)`
-Load bfepm configuration from a TOML file.
-
-#### `bfepm-config-validate (config)`
-Validate bfepm configuration structure.
-
-### Lock File Functions
-
-#### `bfepm-lock-generate ()`
-Generate a lock file from currently installed packages.
-
-#### `bfepm-lock-verify ()`
-Verify that installed packages match the lock file.
-
-#### `bfepm-lock-install ()`
-Install packages from the lock file.
-
-### Utility Functions
-
-#### `bfepm-utils-version-compare (v1 v2)`
-Compare two version strings.
-
-#### `bfepm-utils-version-satisfies-p (version requirement)`
-Check if a version satisfies a requirement specification.
-
-## Contributing
-
-Bug reports and feature requests are welcome via GitHub Issues.
-
-### Development Setup
-
-1. Clone the repository
-2. Install development dependencies: `make install`
-3. Run tests: `make test`
-4. Follow the coding conventions in existing files
-
-### Coding Guidelines
-
-- Use the `bfepm-` prefix for all public functions
-- Include comprehensive error handling with `bfepm-utils-error`
+- Follow Emacs Lisp conventions and use `lexical-binding: t`
 - Add docstrings to all public functions
-- Write tests for new functionality using buttercup
-- Follow existing naming conventions
+- Write tests for new functionality using ERT
+- Keep functions focused and modular
+- Use the `bfepm-` prefix for all public functions
 
-## License
+## 📊 Project Status
 
-[License information to be added]
+### Recent Accomplishments
+- ✅ Established solid foundation with comprehensive test suite
+- ✅ Implemented modular architecture with clear separation of concerns
+- ✅ Set up robust CI/CD pipeline with multiple Emacs versions
+- ✅ Created flexible configuration system with TOML support
 
-## Related Links
+### Next Milestones
+- 🎯 **v0.1.0** (2 weeks): Fix build system, enhance package installation
+- 🎯 **v0.2.0** (5 weeks): Multi-source support, dependency resolution
+- 🎯 **v1.0.0** (11 weeks): Production-ready release
 
-- [Design Document](CONCEPT.md)
-- [Architecture](ARCHITECTURE.md)
-- [Implementation Plan](IMPLEMENTATION_PLAN.md)
+### Community
+- **Issues**: Report bugs and request features on GitHub
+- **Discussions**: Join development discussions in GitHub Issues
+- **Documentation**: Help improve documentation and examples
+
+## 📜 License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+**Note**: This project is under active development. APIs and configurations may change before the v1.0.0 release. We welcome feedback and contributions!
