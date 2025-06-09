@@ -151,16 +151,28 @@
 
 (defun bfepm-ui--get-config-packages ()
   "Get packages from configuration file."
-  (let ((config (bfepm-core-get-config)))
-    (if config
-        ;; Extract packages from config structure
-        (let ((packages (bfepm-config-packages config)))
-          (mapcar (lambda (pkg)
-                    (cons (bfepm-package-name pkg)
-                          (or (bfepm-package-version pkg) "latest")))
-                  packages))
-      ;; Fallback: try to parse configuration file directly
-      (bfepm-ui--parse-config-file-packages))))
+  (cond
+   ;; Check if demo packages are available (demo environment)
+   ((and (boundp 'bfepm-demo-packages) bfepm-demo-packages)
+    (message "[BFEPM UI] Using demo packages (%d packages)" (length bfepm-demo-packages))
+    (mapcar (lambda (pkg-info)
+              (let ((name (car pkg-info)))
+                (cons name (if (fboundp 'bfepm-demo-get-package-version)
+                              (bfepm-demo-get-package-version name)
+                            "latest"))))
+            bfepm-demo-packages))
+   ;; Try to get from loaded config
+   (t
+    (let ((config (bfepm-core-get-config)))
+      (if (and config (> (length (bfepm-config-packages config)) 0))
+          ;; Extract packages from config structure
+          (let ((packages (bfepm-config-packages config)))
+            (mapcar (lambda (pkg)
+                      (cons (bfepm-package-name pkg)
+                            (or (bfepm-package-version pkg) "latest")))
+                    packages))
+        ;; Fallback: try to parse configuration file directly
+        (bfepm-ui--parse-config-file-packages))))))
 
 (defun bfepm-ui--get-config-description (package-name)
   "Get description for PACKAGE-NAME from demo package descriptions or fallback."
