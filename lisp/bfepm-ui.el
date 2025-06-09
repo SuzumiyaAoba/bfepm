@@ -128,16 +128,26 @@
 
 (defun bfepm-ui--parse-config-file-packages ()
   "Parse packages from configuration file when config structure is not available."
-  (let ((config-file (if (boundp 'bfepm-config-file) 
-                        bfepm-config-file 
-                      (expand-file-name "bfepm.toml" user-emacs-directory))))
+  (let ((config-file (cond
+                      ;; First check bfepm-config-file variable (demo sets this)
+                      ((and (boundp 'bfepm-config-file) bfepm-config-file)
+                       bfepm-config-file)
+                      ;; Check for sample/bfepm.toml (demo environment)
+                      ((file-exists-p "sample/bfepm.toml")
+                       (expand-file-name "sample/bfepm.toml"))
+                      ;; Default location
+                      (t (expand-file-name "bfepm.toml" user-emacs-directory)))))
     (if (file-exists-p config-file)
         (condition-case nil
-            (bfepm-ui--simple-toml-parse config-file)
+            (progn
+              (message "[BFEPM UI] Reading packages from: %s" config-file)
+              (bfepm-ui--simple-toml-parse config-file))
           (error 
            (message "[BFEPM UI] Could not parse config file: %s" config-file)
            '()))
-      '())))
+      (progn
+        (message "[BFEPM UI] No config file found. Searched: %s" config-file)
+        '()))))
 
 (defun bfepm-ui--get-config-packages ()
   "Get packages from configuration file."
