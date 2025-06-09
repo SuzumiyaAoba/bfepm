@@ -90,6 +90,73 @@
     
     (setq tabulated-list-entries (nreverse entries))))
 
+(defun bfepm-ui--string-trim (string)
+  "Trim whitespace from STRING (compatibility function)."
+  (replace-regexp-in-string "\\`[ \t\n\r]+" "" 
+                            (replace-regexp-in-string "[ \t\n\r]+\\'" "" string)))
+
+(defun bfepm-ui--simple-toml-parse (file)
+  "Simple TOML parser to extract package names and versions from FILE."
+  (with-temp-buffer
+    (insert-file-contents file)
+    (goto-char (point-min))
+    (let ((packages '())
+          (in-packages-section nil))
+      (while (not (eobp))
+        (let ((line (bfepm-ui--string-trim (buffer-substring-no-properties 
+                                            (line-beginning-position) 
+                                            (line-end-position)))))
+          (cond
+           ;; Check for [packages] section
+           ((string= line "[packages]")
+            (setq in-packages-section t))
+           ;; Check for any other sections
+           ((and (string-prefix-p "[" line)
+                 (not (string= line "[packages]")))
+            (setq in-packages-section nil))
+           ;; Parse package lines in [packages] section
+           ((and in-packages-section
+                 (not (string-prefix-p "#" line))
+                 (not (string= line ""))
+                 (not (string-prefix-p "[packages." line))
+                 (string-match "^\\([a-zA-Z0-9_-]+\\)\\s-*=\\s-*\"\\([^\"]+\\)\"" line))
+            (let ((pkg-name (match-string 1 line))
+                  (version (match-string 2 line)))
+              (push (cons pkg-name version) packages)))))
+        (forward-line 1))
+      (reverse packages))))
+
+(defun bfepm-ui--parse-config-file-packages ()
+  "Parse packages from configuration file when config structure is not available."
+  (let ((config-file (if (boundp 'bfepm-config-file) 
+                        bfepm-config-file 
+                      (expand-file-name "bfepm.toml" user-emacs-directory))))
+    (if (file-exists-p config-file)
+        (condition-case nil
+            (bfepm-ui--simple-toml-parse config-file)
+          (error 
+           (message "[BFEPM UI] Could not parse config file: %s" config-file)
+           '()))
+      '())))
+
+(defun bfepm-ui--get-config-packages ()
+  "Get packages from configuration file."
+  (let ((config (bfepm-core-get-config)))
+    (if config
+        ;; Extract packages from config structure
+        (let ((packages (bfepm-config-packages config)))
+          (mapcar (lambda (pkg)
+                    (cons (bfepm-package-name pkg)
+                          (or (bfepm-package-version pkg) "latest")))
+                  packages))
+      ;; Fallback: try to parse configuration file directly
+      (bfepm-ui--parse-config-file-packages))))
+
+(defun bfepm-ui--get-config-description (package-name)
+  "Get description for PACKAGE-NAME from demo package descriptions or fallback."
+  (when (boundp 'bfepm-demo-package-descriptions)
+    (cadr (assoc package-name bfepm-demo-package-descriptions))))
+
 (defun bfepm-ui-update-available-package-list ()
   "Update the tabulated list with available packages from configuration."
   (let ((config-packages (bfepm-ui--get-config-packages))
@@ -138,72 +205,6 @@
                     (match-string 1)))))
         (error nil))))
 
-(defun bfepm-ui--get-config-packages ()
-  "Get packages from configuration file."
-  (let ((config (bfepm-core-get-config)))
-    (if config
-        ;; Extract packages from config structure
-        (let ((packages (bfepm-config-packages config)))
-          (mapcar (lambda (pkg)
-                    (cons (bfepm-package-name pkg)
-                          (or (bfepm-package-version pkg) "latest")))
-                  packages))
-      ;; Fallback: try to parse configuration file directly
-      (bfepm-ui--parse-config-file-packages))))
-
-(defun bfepm-ui--parse-config-file-packages ()
-  "Parse packages from configuration file when config structure is not available."
-  (let ((config-file (if (boundp 'bfepm-config-file) 
-                        bfepm-config-file 
-                      (expand-file-name "bfepm.toml" user-emacs-directory))))
-    (if (file-exists-p config-file)
-        (condition-case nil
-            (bfepm-ui--simple-toml-parse config-file)
-          (error 
-           (message "[BFEPM UI] Could not parse config file: %s" config-file)
-           '()))
-      '())))
-
-(defun bfepm-ui--simple-toml-parse (file)
-  "Simple TOML parser to extract package names and versions from FILE."
-  (with-temp-buffer
-    (insert-file-contents file)
-    (goto-char (point-min))
-    (let ((packages '())
-          (in-packages-section nil))
-      (while (not (eobp))
-        (let ((line (bfepm-ui--string-trim (buffer-substring-no-properties 
-                                            (line-beginning-position) 
-                                            (line-end-position)))))
-          (cond
-           ;; Check for [packages] section
-           ((string= line "[packages]")
-            (setq in-packages-section t))
-           ;; Check for any other sections
-           ((and (string-prefix-p "[" line)
-                 (not (string= line "[packages]")))
-            (setq in-packages-section nil))
-           ;; Parse package lines in [packages] section
-           ((and in-packages-section
-                 (not (string-prefix-p "#" line))
-                 (not (string= line ""))
-                 (not (string-prefix-p "[packages." line))
-                 (string-match "^\\([a-zA-Z0-9_-]+\\)\\s-*=\\s-*\"\\([^\"]+\\)\"" line))
-            (let ((pkg-name (match-string 1 line))
-                  (version (match-string 2 line)))
-              (push (cons pkg-name version) packages)))))
-        (forward-line 1))
-      (reverse packages))))
-
-(defun bfepm-ui--string-trim (string)
-  "Trim whitespace from STRING (compatibility function)."
-  (replace-regexp-in-string "\\`[ \t\n\r]+" "" 
-                            (replace-regexp-in-string "[ \t\n\r]+\\'" "" string)))
-
-(defun bfepm-ui--get-config-description (package-name)
-  "Get description for PACKAGE-NAME from demo package descriptions or fallback."
-  (when (boundp 'bfepm-demo-package-descriptions)
-    (cadr (assoc package-name bfepm-demo-package-descriptions))))
 
 ;;;###autoload
 (defun bfepm-ui-show-available ()
