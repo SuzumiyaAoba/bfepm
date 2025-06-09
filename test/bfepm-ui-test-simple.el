@@ -48,6 +48,30 @@
           (should (string= (aref vector1 2) "Installed"))
           (should (string= (aref vector1 3) "Description for package1")))))))
 
+(ert-deftest bfepm-ui-mode-line-update ()
+  "Test that mode line updates correctly with view changes."
+  (with-temp-buffer
+    (bfepm-ui-mode)
+    ;; Test installed view
+    (setq bfepm-ui-current-view 'installed)
+    (bfepm-ui--update-mode-line)
+    (should (string-match "Installed" mode-name))
+    
+    ;; Test available view
+    (setq bfepm-ui-current-view 'available)
+    (bfepm-ui--update-mode-line)
+    (should (string-match "Available" mode-name))))
+
+;; Note: Testing helper functions is limited due to file loading issues
+;; Focus on testing the main UI functionality that is available
+
+(ert-deftest bfepm-ui-external-commands-exist ()
+  "Test that external UI commands are properly defined."
+  (should (fboundp 'bfepm-ui-show-available-external))
+  (should (fboundp 'bfepm-ui-show-installed-external))
+  (should (commandp 'bfepm-ui-show-available-external))
+  (should (commandp 'bfepm-ui-show-installed-external)))
+
 (provide 'bfepm-ui-test-simple)
 
 ;;; bfepm-ui-test-simple.el ends here

@@ -115,12 +115,13 @@
 
 (defun bfepm-ui--get-package-description (package-name)
   "Get description for PACKAGE-NAME from its main file."
-  (let* ((package-dir (if (boundp 'bfepm-core-get-packages-directory)
+  (let* ((package-dir (condition-case nil
                           (expand-file-name package-name (bfepm-core-get-packages-directory))
-                        (expand-file-name package-name)))
-         (main-file (expand-file-name (format "%s.el" package-name) package-dir)))
+                        (error nil)))
+         (main-file (when package-dir
+                      (expand-file-name (format "%s.el" package-name) package-dir))))
     
-    (when (file-exists-p main-file)
+    (when (and main-file (file-exists-p main-file))
       (condition-case nil
           (with-temp-buffer
             (insert-file-contents main-file)
@@ -299,7 +300,9 @@
   (interactive)
   (let ((pkg-name (or package-name 
                      (tabulated-list-get-id)
-                     (read-string "Package name: "))))
+                     (completing-read "Package name: " 
+                                    (mapcar #'car (bfepm-ui--get-config-packages))
+                                    nil nil))))
     (when pkg-name
       (condition-case err
           (progn
@@ -347,8 +350,7 @@
 (defun bfepm-ui-refresh ()
   "Refresh the package list."
   (interactive)
-  (bfepm-ui-refresh-buffer)
-  (message "Package list refreshed"))
+  (revert-buffer))
 
 (defun bfepm-ui-help ()
   "Show help for BFEPM UI commands."
