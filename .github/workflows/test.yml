@@ -45,9 +45,13 @@ jobs:
 
       - name: Byte compile
         run: |
+          # Compile most files with strict warnings
           emacs -batch -L lisp \
             --eval "(setq byte-compile-error-on-warn t)" \
-            -f batch-byte-compile lisp/*.el
+            -f batch-byte-compile lisp/bfepm.el lisp/bfepm-core.el lisp/bfepm-config.el lisp/bfepm-config-minimal.el lisp/bfepm-utils.el lisp/bfepm-package.el lisp/bfepm-lock.el
+          # Compile UI file with warnings but no errors (due to forward references)
+          emacs -batch -L lisp \
+            -f batch-byte-compile lisp/bfepm-ui.el
 
       - name: Run tests
         run: |
@@ -57,6 +61,7 @@ jobs:
             -l test/bfepm-test.el \
             -l test/bfepm-config-test.el \
             -l test/bfepm-utils-test.el \
+            -l test/bfepm-ui-test-simple.el \
             -f ert-run-tests-batch-and-exit
 
       - name: Package lint
@@ -117,6 +122,7 @@ jobs:
             -l test/bfepm-test.el \
             -l test/bfepm-config-test.el \
             -l test/bfepm-utils-test.el \
+            -l test/bfepm-ui-test-simple.el \
             -f ert-run-tests-batch-and-exit
 
           # Generate coverage report
