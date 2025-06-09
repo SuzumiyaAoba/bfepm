@@ -202,30 +202,11 @@
     
     (setq tabulated-list-entries (nreverse entries))))
 
-(defun bfepm-ui--get-package-description (package-name)
+(defun bfepm-ui--get-package-description (_package-name)
   "Get description for PACKAGE-NAME from its main file."
-  (let* ((package-dir (condition-case nil
-                          (expand-file-name package-name (bfepm-core-get-packages-directory))
-                        (error nil)))
-         (main-file (when package-dir
-                      (expand-file-name (format "%s.el" package-name) package-dir))))
-    
-    (when (and main-file (file-exists-p main-file))
-      (condition-case nil
-          (with-temp-buffer
-            (insert-file-contents main-file)
-            (goto-char (point-min))
-            ;; Look for package header description
-            (or (when (re-search-forward "^;;; Commentary:\\s-*$" nil t)
-                  (forward-line 1)
-                  (when (re-search-forward "^;;[ \t]*\\(.+\\)$" nil t)
-                    (match-string 1)))
-                ;; Fallback: look for first comment line
-                (progn
-                  (goto-char (point-min))
-                  (when (re-search-forward "^;;[ \t]+\\(.+\\)$" nil t)
-                    (match-string 1)))))
-        (error nil))))
+  ;; For now, return nil to avoid the bfepm-ui-toggle-view issue
+  ;; TODO: Implement proper package description extraction
+  nil)
 
 
 
@@ -235,7 +216,7 @@
   (interactive)
   (if (eq bfepm-ui-current-view 'installed)
       (bfepm-ui-show-available-external)
-    (bfepm-ui-show-installed-external))))
+    (bfepm-ui-show-installed-external)))
 
 (defun bfepm-ui-show-package-details ()
   "Show detailed information about the package at point."
