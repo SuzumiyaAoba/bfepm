@@ -31,8 +31,8 @@
     (define-key map (kbd "u") 'bfepm-ui-update-package)
     (define-key map (kbd "U") 'bfepm-ui-update-all-packages)
     (define-key map (kbd "g") 'bfepm-ui-refresh)
-    (define-key map (kbd "a") 'bfepm-ui-show-available)
-    (define-key map (kbd "I") 'bfepm-ui-show-installed)
+    (define-key map (kbd "a") 'bfepm-ui-show-available-external)
+    (define-key map (kbd "I") 'bfepm-ui-show-installed-external)
     (define-key map (kbd "t") 'bfepm-ui-toggle-view)
     (define-key map (kbd "q") 'quit-window)
     (define-key map (kbd "?") 'bfepm-ui-help)
@@ -216,48 +216,14 @@
         (error nil))))
 
 
-;;;###autoload
-(defun bfepm-ui-show-available ()
-  "Switch to available packages view."
-  (interactive)
-  (if (eq major-mode 'bfepm-ui-mode)
-      ;; Already in UI mode, just switch view
-      (progn
-        (setq bfepm-ui-current-view 'available)
-        (bfepm-ui--update-mode-line)
-        (bfepm-ui-refresh-buffer)
-        (message "Showing available packages from configuration"))
-    ;; Not in UI mode, open UI and switch to available view
-    (let ((buffer (get-buffer-create bfepm-ui-buffer-name)))
-      (with-current-buffer buffer
-        (bfepm-ui-mode)
-        (setq bfepm-ui-current-view 'available)
-        (bfepm-ui--update-mode-line)
-        (bfepm-ui-update-available-package-list)
-        (tabulated-list-print))
-      (switch-to-buffer buffer)
-      (message "BFEPM Package Management - Showing available packages from configuration"))))
 
-;;;###autoload
-(defun bfepm-ui-show-installed ()
-  "Switch to installed packages view."
-  (interactive)
-  (if (eq major-mode 'bfepm-ui-mode)
-      ;; Already in UI mode, just switch view
-      (progn
-        (setq bfepm-ui-current-view 'installed)
-        (bfepm-ui--update-mode-line)
-        (bfepm-ui-refresh-buffer)
-        (message "Showing installed packages"))
-    ;; Not in UI mode, open UI (which defaults to installed view)
-    (bfepm-ui)))
 
 (defun bfepm-ui-toggle-view ()
   "Toggle between installed and available packages view."
   (interactive)
   (if (eq bfepm-ui-current-view 'installed)
-      (bfepm-ui-show-available)
-    (bfepm-ui-show-installed))))
+      (bfepm-ui-show-available-external)
+    (bfepm-ui-show-installed-external))))
 
 (defun bfepm-ui-show-package-details ()
   "Show detailed information about the package at point."
@@ -421,11 +387,6 @@
   (interactive)
   (bfepm-ui))
 
-;; Aliases for the expected function names
-;;;###autoload
-(defalias 'bfepm-ui-show-available 'bfepm-ui-show-available-external)
-;;;###autoload
-(defalias 'bfepm-ui-show-installed 'bfepm-ui-show-installed-external)
 
 (provide 'bfepm-ui)
 
