@@ -12,10 +12,12 @@ bfepm is currently in active development. Core functionality is implemented and 
 - ✅ Core foundation with data structures
 - ✅ Configuration loading (TOML + minimal fallback)
 - ✅ Basic package management operations
-- ✅ Comprehensive test suite (31 tests)
+- ✅ Interactive package management UI
+- ✅ Package installation with retry logic and error recovery
+- ✅ Comprehensive test suite (33 tests)
 - ✅ CI/CD pipeline
-- 🚧 Working on: Multi-source support and real package installation
-- 📋 Next: Dependency resolution and lock file improvements
+- 🚧 Working on: Dependency resolution and lock file improvements
+- 📋 Next: Multi-source support and profile system
 
 See [Implementation Roadmap](docs/IMPLEMENTATION_ROADMAP.md) for detailed progress and plans.
 
@@ -42,6 +44,9 @@ make install
 
 # Run tests to verify setup
 make test
+
+# Try the interactive demo
+./demo.sh
 ```
 
 ### Basic Usage (Preview)
@@ -73,10 +78,32 @@ Load bfepm in your Emacs configuration:
 (require 'bfepm)
 (bfepm-init)
 
-;; Interactive commands (planned)
+;; Interactive commands
 ;; M-x bfepm-install
 ;; M-x bfepm-update
 ;; M-x bfepm-list
+
+;; Package Management UI
+;; M-x bfepm-ui-show
+```
+
+## 🎮 Interactive Demo
+
+Try BFEPM with the included interactive demo:
+
+```bash
+# Run the interactive demo
+./demo.sh
+```
+
+**Demo Features:**
+- **Package Management UI** (`C-c e g`) - Interactive tabulated interface
+- **Package Installation** (`C-c e t`) - Install packages from sample configuration
+- **Mock Installation** (`C-c e M`) - Safe simulation mode for testing
+- **Configuration Viewing** (`C-c e c`) - Check current setup
+- **Help System** (`C-c e h`) - View all available commands
+
+The demo runs in a temporary environment and automatically cleans up on exit.
 ```
 
 ## 📋 Configuration Format

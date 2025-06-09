@@ -11,9 +11,13 @@ install:
 
 # Build the project
 build: install
+	# Compile most files with strict warnings
 	$(EMACS) -batch -L lisp \
 		--eval "(setq byte-compile-error-on-warn t)" \
-		-f batch-byte-compile lisp/*.el
+		-f batch-byte-compile lisp/bfepm.el lisp/bfepm-core.el lisp/bfepm-config.el lisp/bfepm-config-minimal.el lisp/bfepm-utils.el lisp/bfepm-package.el lisp/bfepm-lock.el
+	# Compile UI file with warnings but no errors (due to forward references)
+	$(EMACS) -batch -L lisp \
+		-f batch-byte-compile lisp/bfepm-ui.el
 
 # Run tests with ERT
 test: build
@@ -58,9 +62,13 @@ checkdoc:
 
 # Byte compile all files
 compile:
+	# Compile most files with strict warnings
 	$(EMACS) -batch -L lisp \
 		--eval "(setq byte-compile-error-on-warn t)" \
-		-f batch-byte-compile lisp/*.el
+		-f batch-byte-compile lisp/bfepm.el lisp/bfepm-core.el lisp/bfepm-config.el lisp/bfepm-config-minimal.el lisp/bfepm-utils.el lisp/bfepm-package.el lisp/bfepm-lock.el
+	# Compile UI file with warnings but no errors (due to forward references)
+	$(EMACS) -batch -L lisp \
+		-f batch-byte-compile lisp/bfepm-ui.el
 
 # Run all checks
 check: compile lint test

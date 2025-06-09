@@ -519,7 +519,10 @@
   (message "  === Direct BFEPM Commands ===")
   (message "  C-c e I  - Interactive install")
   (message "  C-c e R  - Remove package")
-  (message "  C-c e U  - Update packages"))
+  (message "  C-c e U  - Update packages")
+  (message "  === BFEPM UI ===")
+  (message "  C-c e g  - Open BFEPM package management UI")
+  (message "  C-c e G  - Open BFEPM UI (direct)"))
 
 ;; Bind demo functions to keys for easy testing
 ;; Single package
@@ -547,6 +550,11 @@
 (global-set-key (kbd "C-c e R") #'bfepm-remove)
 (global-set-key (kbd "C-c e U") #'bfepm-update)
 (global-set-key (kbd "C-c e L") #'bfepm-list)
+
+;; BFEPM UI commands
+(when (featurep 'bfepm-ui)
+  (global-set-key (kbd "C-c e g") #'bfepm-ui-show)
+  (global-set-key (kbd "C-c e G") #'bfepm-ui))
 
 ;; Welcome message
 (defun bfepm-demo-welcome ()
@@ -614,6 +622,7 @@
     (insert "  === Management ===\n")
     (insert "  C-c e c  - Show current configuration\n")
     (insert "  C-c e l  - List installed packages\n")
+    (insert "  C-c e g  - Open BFEPM package management UI\n")
     (insert "  C-c e d  - Show directory locations (temp)\n")
     (insert "  C-c e s  - Test version specification\n")
     (insert "  C-c e h  - Show all commands\n\n")

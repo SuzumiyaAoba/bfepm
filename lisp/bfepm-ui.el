@@ -12,8 +12,15 @@
 (require 'bfepm-package)
 (require 'bfepm-utils)
 
+
 (defvar bfepm-ui-buffer-name "*BFEPM Packages*"
   "Name of the BFEPM package management buffer.")
+
+(defvar bfepm-ui-available-buffer-name "*BFEPM Available Packages*"
+  "Name of the BFEPM available packages buffer.")
+
+(defvar bfepm-ui-current-view 'installed
+  "Current view mode: \\='installed or \\='available.")
 
 (defvar bfepm-ui-mode-map
   (let ((map (make-sparse-keymap)))
@@ -24,10 +31,20 @@
     (define-key map (kbd "u") 'bfepm-ui-update-package)
     (define-key map (kbd "U") 'bfepm-ui-update-all-packages)
     (define-key map (kbd "g") 'bfepm-ui-refresh)
+    (define-key map (kbd "a") 'bfepm-ui-show-available)
+    (define-key map (kbd "I") 'bfepm-ui-show-installed)
+    (define-key map (kbd "t") 'bfepm-ui-toggle-view)
     (define-key map (kbd "q") 'quit-window)
     (define-key map (kbd "?") 'bfepm-ui-help)
     map)
   "Keymap for BFEPM UI mode.")
+
+(defun bfepm-ui--update-mode-line ()
+  "Update mode line to show current view."
+  (setq mode-name (format "BFEPM Packages [%s]" 
+                         (if (eq bfepm-ui-current-view 'installed)
+                             "Installed"
+                           "Available"))))
 
 (define-derived-mode bfepm-ui-mode tabulated-list-mode "BFEPM Packages"
   "Major mode for managing BFEPM packages."
@@ -42,12 +59,17 @@
   (tabulated-list-init-header)
   
   ;; Set up revert function
-  (setq revert-buffer-function #'bfepm-ui-refresh-buffer))
+  (setq revert-buffer-function #'bfepm-ui-refresh-buffer)
+  
+  ;; Update mode line to show current view
+  (bfepm-ui--update-mode-line))
 
 (defun bfepm-ui-refresh-buffer (&optional _ignore-auto _noconfirm)
   "Refresh the BFEPM package list buffer."
   (interactive)
-  (bfepm-ui-update-package-list)
+  (if (eq bfepm-ui-current-view 'installed)
+      (bfepm-ui-update-package-list)
+    (bfepm-ui-update-available-package-list))
   (tabulated-list-print t))
 
 (defun bfepm-ui-update-package-list ()
@@ -64,6 +86,29 @@
                                 version
                                 status
                                 (or description "No description available")))))
+        (push entry entries)))
+    
+    (setq tabulated-list-entries (nreverse entries))))
+
+(defun bfepm-ui-update-available-package-list ()
+  "Update the tabulated list with available packages from configuration."
+  (let ((config-packages (bfepm-ui--get-config-packages))
+        (entries '()))
+    
+    (dolist (package-info config-packages)
+      (let* ((package-name (car package-info))
+             (version-spec (cdr package-info))
+             (status (if (bfepm-core-package-installed-p package-name) 
+                        "Installed" 
+                      "Available"))
+             (description (or (bfepm-ui--get-package-description package-name)
+                             (bfepm-ui--get-config-description package-name)
+                             "No description available"))
+             (entry (list package-name
+                         (vector package-name
+                                version-spec
+                                status
+                                description))))
         (push entry entries)))
     
     (setq tabulated-list-entries (nreverse entries))))
@@ -90,7 +135,117 @@
                   (goto-char (point-min))
                   (when (re-search-forward "^;;[ \t]+\\(.+\\)$" nil t)
                     (match-string 1)))))
-        (error nil)))))
+        (error nil))))
+
+(defun bfepm-ui--get-config-packages ()
+  "Get packages from configuration file."
+  (let ((config (bfepm-core-get-config)))
+    (if config
+        ;; Extract packages from config structure
+        (let ((packages (bfepm-config-packages config)))
+          (mapcar (lambda (pkg)
+                    (cons (bfepm-package-name pkg)
+                          (or (bfepm-package-version pkg) "latest")))
+                  packages))
+      ;; Fallback: try to parse configuration file directly
+      (bfepm-ui--parse-config-file-packages))))
+
+(defun bfepm-ui--parse-config-file-packages ()
+  "Parse packages from configuration file when config structure is not available."
+  (let ((config-file (if (boundp 'bfepm-config-file) 
+                        bfepm-config-file 
+                      (expand-file-name "bfepm.toml" user-emacs-directory))))
+    (if (file-exists-p config-file)
+        (condition-case nil
+            (bfepm-ui--simple-toml-parse config-file)
+          (error 
+           (message "[BFEPM UI] Could not parse config file: %s" config-file)
+           '()))
+      '())))
+
+(defun bfepm-ui--simple-toml-parse (file)
+  "Simple TOML parser to extract package names and versions from FILE."
+  (with-temp-buffer
+    (insert-file-contents file)
+    (goto-char (point-min))
+    (let ((packages '())
+          (in-packages-section nil))
+      (while (not (eobp))
+        (let ((line (bfepm-ui--string-trim (buffer-substring-no-properties 
+                                            (line-beginning-position) 
+                                            (line-end-position)))))
+          (cond
+           ;; Check for [packages] section
+           ((string= line "[packages]")
+            (setq in-packages-section t))
+           ;; Check for any other sections
+           ((and (string-prefix-p "[" line)
+                 (not (string= line "[packages]")))
+            (setq in-packages-section nil))
+           ;; Parse package lines in [packages] section
+           ((and in-packages-section
+                 (not (string-prefix-p "#" line))
+                 (not (string= line ""))
+                 (not (string-prefix-p "[packages." line))
+                 (string-match "^\\([a-zA-Z0-9_-]+\\)\\s-*=\\s-*\"\\([^\"]+\\)\"" line))
+            (let ((pkg-name (match-string 1 line))
+                  (version (match-string 2 line)))
+              (push (cons pkg-name version) packages)))))
+        (forward-line 1))
+      (reverse packages))))
+
+(defun bfepm-ui--string-trim (string)
+  "Trim whitespace from STRING (compatibility function)."
+  (replace-regexp-in-string "\\`[ \t\n\r]+" "" 
+                            (replace-regexp-in-string "[ \t\n\r]+\\'" "" string)))
+
+(defun bfepm-ui--get-config-description (package-name)
+  "Get description for PACKAGE-NAME from demo package descriptions or fallback."
+  (when (boundp 'bfepm-demo-package-descriptions)
+    (cadr (assoc package-name bfepm-demo-package-descriptions))))
+
+;;;###autoload
+(defun bfepm-ui-show-available ()
+  "Switch to available packages view."
+  (interactive)
+  (if (eq major-mode 'bfepm-ui-mode)
+      ;; Already in UI mode, just switch view
+      (progn
+        (setq bfepm-ui-current-view 'available)
+        (bfepm-ui--update-mode-line)
+        (bfepm-ui-refresh-buffer)
+        (message "Showing available packages from configuration"))
+    ;; Not in UI mode, open UI and switch to available view
+    (let ((buffer (get-buffer-create bfepm-ui-buffer-name)))
+      (with-current-buffer buffer
+        (bfepm-ui-mode)
+        (setq bfepm-ui-current-view 'available)
+        (bfepm-ui--update-mode-line)
+        (bfepm-ui-update-available-package-list)
+        (tabulated-list-print))
+      (switch-to-buffer buffer)
+      (message "BFEPM Package Management - Showing available packages from configuration"))))
+
+;;;###autoload
+(defun bfepm-ui-show-installed ()
+  "Switch to installed packages view."
+  (interactive)
+  (if (eq major-mode 'bfepm-ui-mode)
+      ;; Already in UI mode, just switch view
+      (progn
+        (setq bfepm-ui-current-view 'installed)
+        (bfepm-ui--update-mode-line)
+        (bfepm-ui-refresh-buffer)
+        (message "Showing installed packages"))
+    ;; Not in UI mode, open UI (which defaults to installed view)
+    (bfepm-ui)))
+
+(defun bfepm-ui-toggle-view ()
+  "Toggle between installed and available packages view."
+  (interactive)
+  (if (eq bfepm-ui-current-view 'installed)
+      (bfepm-ui-show-available)
+    (bfepm-ui-show-installed))))
 
 (defun bfepm-ui-show-package-details ()
   "Show detailed information about the package at point."
@@ -139,15 +294,19 @@
       
       (pop-to-buffer buffer))))
 
-(defun bfepm-ui-install-package (package-name)
-  "Install PACKAGE-NAME."
-  (interactive "sPackage name: ")
-  (condition-case err
-      (progn
-        (bfepm-package-install package-name)
-        (bfepm-ui-refresh))
-    (error
-     (message "Failed to install %s: %s" package-name (error-message-string err)))))
+(defun bfepm-ui-install-package (&optional package-name)
+  "Install PACKAGE-NAME.  If not provided, install package at point."
+  (interactive)
+  (let ((pkg-name (or package-name 
+                     (tabulated-list-get-id)
+                     (read-string "Package name: "))))
+    (when pkg-name
+      (condition-case err
+          (progn
+            (bfepm-package-install pkg-name)
+            (bfepm-ui-refresh))
+        (error
+         (message "Failed to install %s: %s" pkg-name (error-message-string err)))))))
 
 (defun bfepm-ui-remove-package ()
   "Remove the package at point."
@@ -198,15 +357,22 @@
     (princ "BFEPM Package Management UI\n\n")
     (princ "Key bindings:\n")
     (princ "  RET   - Show package details\n")
-    (princ "  i     - Install new package\n")
+    (princ "  i     - Install package (at point or prompt)\n")
     (princ "  d     - Remove package at point\n")
     (princ "  u     - Update package at point\n")
     (princ "  U     - Update all packages\n")
     (princ "  g     - Refresh package list\n")
+    (princ "  a     - Show available packages from config\n")
+    (princ "  I     - Show installed packages\n")
+    (princ "  t     - Toggle between installed/available view\n")
     (princ "  q     - Quit window\n")
     (princ "  ?     - Show this help\n\n")
+    (princ "Views:\n")
+    (princ "  Installed - Packages currently installed\n")
+    (princ "  Available - Packages defined in configuration file\n\n")
     (princ "Package Status:\n")
     (princ "  Installed - Package is properly installed\n")
+    (princ "  Available - Package can be installed from config\n")
     (princ "  Missing   - Package directory exists but may be corrupted\n")))
 
 ;;;###autoload
@@ -216,11 +382,37 @@
   (let ((buffer (get-buffer-create bfepm-ui-buffer-name)))
     (with-current-buffer buffer
       (bfepm-ui-mode)
+      (setq bfepm-ui-current-view 'installed)
+      (bfepm-ui--update-mode-line)
       (bfepm-ui-update-package-list)
       (tabulated-list-print))
     
     (switch-to-buffer buffer)
-    (message "BFEPM Package Management - Press ? for help")))
+    (message "BFEPM Package Management - Press 'a' for available packages, '?' for help")))
+
+;; Additional interactive functions for external use
+;;;###autoload
+(defun bfepm-ui-show-available-external ()
+  "Switch to available packages view (external command)."
+  (interactive)
+  (bfepm-ui)
+  (setq bfepm-ui-current-view 'available)
+  (bfepm-ui--update-mode-line)
+  (bfepm-ui-update-available-package-list)
+  (tabulated-list-print)
+  (message "Showing available packages from configuration"))
+
+;;;###autoload
+(defun bfepm-ui-show-installed-external ()
+  "Switch to installed packages view (external command)."
+  (interactive)
+  (bfepm-ui))
+
+;; Aliases for the expected function names
+;;;###autoload
+(defalias 'bfepm-ui-show-available 'bfepm-ui-show-available-external)
+;;;###autoload
+(defalias 'bfepm-ui-show-installed 'bfepm-ui-show-installed-external)
 
 (provide 'bfepm-ui)
 

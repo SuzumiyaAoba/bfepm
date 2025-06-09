@@ -28,25 +28,22 @@ make check
 make test-coverage
 ```
 
-### Package Management
+### Running Individual Tests
 ```bash
-# Install dependencies via Keg
-keg install
-
-# Run tests with ERT
-emacs -batch -L . -L test \
+# Run a specific test file
+emacs -batch -L lisp -L test \
   --eval "(require 'ert)" \
   -l test/bfepm-test.el \
   -f ert-run-tests-batch-and-exit
 
-# Byte-compile all files
-emacs -batch -L . -f batch-byte-compile *.el
+# Run a specific test by pattern
+emacs -batch -L lisp -L test \
+  --eval "(require 'ert)" \
+  -l test/bfepm-test.el \
+  --eval "(ert-run-tests-batch-and-exit \"test-pattern\")"
 
-# Package linting
-emacs -batch -L . \
-  --eval "(require 'package-lint)" \
-  --eval "(package-lint-batch-and-exit)" \
-  bfepm.el
+# Check package dependencies
+keg install
 ```
 
 ## Architecture Overview
@@ -54,12 +51,14 @@ emacs -batch -L . \
 bfepm is an Emacs Lisp package manager with a modular, layered architecture:
 
 ### Core Components
-- **bfepm.el**: Main entry point with interactive commands
-- **bfepm-core.el**: Core functionality, data structures, and initialization
-- **bfepm-config.el**: TOML configuration file parsing and validation
-- **bfepm-package.el**: Package installation, removal, and management
-- **bfepm-utils.el**: Utility functions for downloads, version comparison, and file operations
-- **bfepm-lock.el**: Lock file generation and verification for reproducible installs
+- **bfepm.el**: Main entry point with interactive commands (lisp/bfepm.el)
+- **bfepm-core.el**: Core functionality, data structures, and initialization (lisp/bfepm-core.el)
+- **bfepm-config.el**: TOML configuration file parsing and validation (lisp/bfepm-config.el)
+- **bfepm-config-minimal.el**: Fallback configuration without TOML dependency (lisp/bfepm-config-minimal.el)
+- **bfepm-package.el**: Package installation, removal, and management (lisp/bfepm-package.el)
+- **bfepm-utils.el**: Utility functions for downloads, version comparison, and file operations (lisp/bfepm-utils.el)
+- **bfepm-lock.el**: Lock file generation and verification for reproducible installs (lisp/bfepm-lock.el)
+- **bfepm-ui.el**: Interactive tabulated package management interface (lisp/bfepm-ui.el)
 
 ### Data Structures
 - `bfepm-package`: Represents a package with name, version, source, dependencies, config, and status

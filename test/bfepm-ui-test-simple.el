@@ -13,6 +13,8 @@
 (ert-deftest bfepm-ui-mode-initialization ()
   "Test that bfepm-ui-mode initializes correctly."
   (with-temp-buffer
+    ;; Ensure the function exists before calling
+    (should (fboundp 'bfepm-ui--update-mode-line))
     (bfepm-ui-mode)
     (should (eq major-mode 'bfepm-ui-mode))
     (should (vectorp tabulated-list-format))

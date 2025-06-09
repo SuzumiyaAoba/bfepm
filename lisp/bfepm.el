@@ -65,6 +65,8 @@
 (declare-function bfepm-package-update-all "bfepm-package")
 (declare-function bfepm-package-remove "bfepm-package")
 (declare-function bfepm-ui "bfepm-ui")
+(declare-function bfepm-ui-show-available-external "bfepm-ui")
+(declare-function bfepm-ui-show-installed-external "bfepm-ui")
 
 (defcustom bfepm-config-file (expand-file-name "bfepm.toml" user-emacs-directory)
   "Path to the main BFEPM configuration file."
