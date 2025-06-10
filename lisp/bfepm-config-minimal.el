@@ -34,7 +34,8 @@
    :sources bfepm-config--default-sources))
 
 (defun bfepm-config-validate (config)
-  "Validate BFEPM configuration structure."
+  "Validate BFEPM configuration structure.
+CONFIG is the configuration structure to validate."
   (unless (bfepm-config-p config)
     (bfepm-utils-error "Invalid configuration structure"))
   
@@ -54,14 +55,14 @@
   (alist-get source-name (bfepm-config-sources config) nil nil #'string=))
 
 (defun bfepm-config-load (file)
-  "Load BFEPM configuration from FILE (minimal version - returns default config)."
+  "Load BFEPM configuration from FILE (minimal version - return default config)."
   (bfepm-utils-message "Loading configuration from %s (minimal parser)" file)
   ;; Minimal version just returns default config
   ;; A more sophisticated version could implement basic TOML parsing
   (bfepm-config-create-default))
 
 (defun bfepm-config-save (_config file)
-  "Save CONFIG to FILE (minimal version - creates basic template)."
+  "Save CONFIG to FILE (minimal version - create basic template)."
   (bfepm-utils-message "Saving configuration to %s (minimal version)" file)
   (with-temp-buffer
     (insert "# BFEPM Configuration File (minimal template)\n")

@@ -36,6 +36,13 @@
     (define-key map (kbd "t") 'bfepm-ui-toggle-view)
     (define-key map (kbd "q") 'quit-window)
     (define-key map (kbd "?") 'bfepm-ui-help)
+    ;; Enhanced UI features
+    (define-key map (kbd "s") 'bfepm-ui-show-package-status)
+    (define-key map (kbd "m") 'bfepm-ui-mark-package)
+    (define-key map (kbd "M") 'bfepm-ui-unmark-all)
+    (define-key map (kbd "B i") 'bfepm-ui-install-marked)
+    (define-key map (kbd "B d") 'bfepm-ui-remove-marked)
+    (define-key map (kbd "/") 'bfepm-ui-filter-packages)
     map)
   "Keymap for BFEPM UI mode.")
 
@@ -81,19 +88,25 @@
       (let* ((version (bfepm-core-get-package-version package-name))
              (status (if (bfepm-core-package-installed-p package-name) "Installed" "Missing"))
              (description (bfepm-ui--get-package-description package-name))
-             (entry (list package-name
-                         (vector package-name
-                                version
-                                status
-                                (or description "No description available")))))
-        (push entry entries)))
+             (desc-or-default (or description "No description available")))
+        (when (bfepm-ui--should-show-package-p package-name desc-or-default)
+          (let ((entry (list package-name
+                           (vector package-name
+                                  version
+                                  status
+                                  desc-or-default))))
+            (push entry entries)))))
     
     (setq tabulated-list-entries (nreverse entries))))
 
 (defun bfepm-ui--string-trim (string)
   "Trim whitespace from STRING (compatibility function)."
-  (replace-regexp-in-string "\\`[ \t\n\r]+" "" 
-                            (replace-regexp-in-string "[ \t\n\r]+\\'" "" string)))
+  (if (fboundp 'string-trim)
+      (string-trim string)
+    ;; Optimized single-regex approach for compatibility
+    (if (string-match "\\`[ \t\n\r]*\\(.*?\\)[ \t\n\r]*\\'" string)
+        (match-string 1 string)
+      string)))
 
 (defun bfepm-ui--simple-toml-parse (file)
   "Simple TOML parser to extract package names and versions from FILE."
@@ -192,13 +205,14 @@
                       "Available"))
              (description (or (bfepm-ui--get-package-description package-name)
                              (bfepm-ui--get-config-description package-name)
-                             "No description available"))
-             (entry (list package-name
-                         (vector package-name
-                                version-spec
-                                status
-                                description))))
-        (push entry entries)))
+                             "No description available")))
+        (when (bfepm-ui--should-show-package-p package-name description)
+          (let ((entry (list package-name
+                           (vector package-name
+                                  version-spec
+                                  status
+                                  description))))
+            (push entry entries)))))
     
     (setq tabulated-list-entries (nreverse entries))))
 
@@ -232,33 +246,37 @@
         (version (bfepm-core-get-package-version package-name)))
     
     (with-current-buffer buffer
-      (let ((inhibit-read-only t))
+      (let ((inhibit-read-only t)
+            (content-parts (list (format "Package: %s\n" package-name)
+                                (format "Version: %s\n" version)
+                                (format "Directory: %s\n" package-dir)
+                                "\n")))
         (erase-buffer)
-        (insert (format "Package: %s\n" package-name))
-        (insert (format "Version: %s\n" version))
-        (insert (format "Directory: %s\n" package-dir))
-        (insert "\n")
         
-        ;; Show files in package directory
+        ;; Build file list section
         (when (file-directory-p package-dir)
-          (insert "Files:\n")
           (let ((files (directory-files package-dir nil "^[^.]")))
+            (push "Files:\n" content-parts)
             (dolist (file files)
-              (insert (format "  - %s\n" file))))
-          (insert "\n"))
+              (push (format "  - %s\n" file) content-parts))
+            (push "\n" content-parts)))
         
-        ;; Show package description if available
+        ;; Add description section
         (let ((description (bfepm-ui--get-package-description package-name)))
           (when description
-            (insert "Description:\n")
-            (insert (format "  %s\n\n" description))))
+            (push "Description:\n" content-parts)
+            (push (format "  %s\n\n" description) content-parts)))
         
-        ;; Show load path status
+        ;; Add load path status
         (let ((load-path-entry (expand-file-name package-name (bfepm-core-get-packages-directory))))
-          (insert "Load Path Status:\n")
-          (insert (format "  %s: %s\n"
-                         load-path-entry
-                         (if (member load-path-entry load-path) "Added" "Not added"))))
+          (push "Load Path Status:\n" content-parts)
+          (push (format "  %s: %s\n"
+                       load-path-entry
+                       (if (member load-path-entry load-path) "Added" "Not added"))
+                content-parts))
+        
+        ;; Insert all content at once for better performance
+        (insert (apply 'concat (nreverse content-parts)))
         
         (goto-char (point-min))
         (read-only-mode 1))
@@ -338,7 +356,13 @@
     (princ "  I     - Show installed packages\n")
     (princ "  t     - Toggle between installed/available view\n")
     (princ "  q     - Quit window\n")
-    (princ "  ?     - Show this help\n\n")
+    (princ "  ?     - Show this help\n")
+    (princ "  s     - Show package status summary\n")
+    (princ "  m     - Mark package for batch operations\n")
+    (princ "  M     - Unmark all packages\n")
+    (princ "  B i   - Install all marked packages\n")
+    (princ "  B d   - Remove all marked packages\n")
+    (princ "  /     - Filter packages by name/description\n\n")
     (princ "Views:\n")
     (princ "  Installed - Packages currently installed\n")
     (princ "  Available - Packages defined in configuration file\n\n")
@@ -380,6 +404,171 @@
   (interactive)
   (bfepm-ui))
 
+;; UI/UX Enhancements
+
+(defun bfepm-ui-show-package-status ()
+  "Show detailed status information about packages in a summary buffer."
+  (interactive)
+  (let ((buffer (get-buffer-create "*BFEPM Status*"))
+        (installed-packages (bfepm-core-get-installed-packages))
+        (available-packages (bfepm-ui--get-config-packages)))
+    
+    (with-current-buffer buffer
+      (let ((inhibit-read-only t))
+        (erase-buffer)
+        (insert "=== BFEPM Package Manager Status ===\n\n")
+        
+        ;; Summary section
+        (insert (format "Installed Packages: %d\n" 
+                       (length installed-packages)))
+        (insert (format "Available in Config: %d\n" 
+                       (length available-packages)))
+        (insert (format "Packages Directory: %s\n" 
+                       (bfepm-core-get-packages-directory)))
+        (insert "\n")
+        
+        ;; Package health check
+        (insert "=== Package Health Check ===\n")
+        (let ((missing-count 0))
+          (dolist (pkg-name installed-packages)
+            (let ((pkg-dir (expand-file-name pkg-name (bfepm-core-get-packages-directory))))
+              (unless (file-directory-p pkg-dir)
+                (setq missing-count (1+ missing-count)))))
+          
+          (insert (format "Missing/Corrupted: %d\n" missing-count))
+          (insert (format "Health Status: %s\n\n" 
+                         (if (= missing-count 0) "✓ Good" "⚠ Issues Found"))))
+        
+        ;; Quick actions guide
+        (insert "=== Quick Actions ===\n")
+        (insert "Press 'i' in package list to install\n")
+        (insert "Press 'd' to remove packages\n")
+        (insert "Press 'U' to update all packages\n")
+        (insert "Press 't' to toggle view\n")
+        (insert "Press 'g' to refresh\n")
+        
+        (goto-char (point-min))
+        (read-only-mode 1))
+      
+      (pop-to-buffer buffer)
+      (message "Package status summary displayed"))))
+
+(defun bfepm-ui-mark-package ()
+  "Mark package at point for batch operations."
+  (interactive)
+  (let ((package-name (tabulated-list-get-id)))
+    (when package-name
+      (if (get-text-property (point) 'bfepm-marked)
+          (progn
+            (remove-text-properties (line-beginning-position) (line-end-position) 
+                                   '(bfepm-marked nil face nil))
+            (message "Unmarked %s" package-name))
+        (add-text-properties (line-beginning-position) (line-end-position)
+                            '(bfepm-marked t face highlight))
+        (message "Marked %s" package-name))
+      (forward-line 1))))
+
+(defun bfepm-ui-unmark-all ()
+  "Unmark all marked packages."
+  (interactive)
+  (save-excursion
+    (goto-char (point-min))
+    (while (not (eobp))
+      (remove-text-properties (line-beginning-position) (line-end-position)
+                             '(bfepm-marked nil face nil))
+      (forward-line 1)))
+  (message "All packages unmarked"))
+
+(defun bfepm-ui-install-marked ()
+  "Install all marked packages."
+  (interactive)
+  (let ((marked-packages '())
+        (failed-packages '()))
+    (save-excursion
+      (goto-char (point-min))
+      (while (not (eobp))
+        (when (get-text-property (point) 'bfepm-marked)
+          (let ((package-name (tabulated-list-get-id)))
+            (when package-name
+              (push package-name marked-packages))))
+        (forward-line 1)))
+    
+    (if marked-packages
+        (when (yes-or-no-p (format "Install %d marked packages? " (length marked-packages)))
+          (dolist (package-name marked-packages)
+            (condition-case err
+                (progn
+                  (bfepm-utils-message "Installing %s..." package-name)
+                  (bfepm-package-install package-name))
+              (error
+               (push (cons package-name (error-message-string err)) failed-packages)
+               (bfepm-utils-message "Failed to install %s: %s" 
+                                   package-name (error-message-string err)))))
+          (bfepm-ui-unmark-all)
+          (bfepm-ui-refresh)
+          (if failed-packages
+              (message "Batch installation completed with %d failures. Check *Messages* for details." 
+                      (length failed-packages))
+            (message "Batch installation completed successfully")))
+      (message "No packages marked for installation"))))
+
+(defun bfepm-ui-remove-marked ()
+  "Remove all marked packages."
+  (interactive)
+  (let ((marked-packages '())
+        (failed-packages '()))
+    (save-excursion
+      (goto-char (point-min))
+      (while (not (eobp))
+        (when (get-text-property (point) 'bfepm-marked)
+          (let ((package-name (tabulated-list-get-id)))
+            (when package-name
+              (push package-name marked-packages))))
+        (forward-line 1)))
+    
+    (if marked-packages
+        (when (yes-or-no-p (format "Remove %d marked packages? " (length marked-packages)))
+          (dolist (package-name marked-packages)
+            (condition-case err
+                (progn
+                  (bfepm-utils-message "Removing %s..." package-name)
+                  (bfepm-package-remove package-name))
+              (error
+               (push (cons package-name (error-message-string err)) failed-packages)
+               (bfepm-utils-message "Failed to remove %s: %s" 
+                                   package-name (error-message-string err)))))
+          (bfepm-ui-unmark-all)
+          (bfepm-ui-refresh)
+          (if failed-packages
+              (message "Batch removal completed with %d failures. Check *Messages* for details." 
+                      (length failed-packages))
+            (message "Batch removal completed successfully")))
+      (message "No packages marked for removal"))))
+
+(defvar bfepm-ui-filter-string ""
+  "Current filter string for package list.")
+
+(defun bfepm-ui-filter-packages (filter-string)
+  "Filter packages by FILTER-STRING in name or description."
+  (interactive "sFilter packages (empty to clear): ")
+  (setq bfepm-ui-filter-string filter-string)
+  (cond
+   ((eq bfepm-ui-current-view 'installed)
+    (bfepm-ui-update-package-list))
+   ((eq bfepm-ui-current-view 'available)
+    (bfepm-ui-update-available-package-list)))
+  (tabulated-list-print t)
+  (if (string-empty-p filter-string)
+      (message "Filter cleared")
+    (message "Filtering by: %s" filter-string)))
+
+(defun bfepm-ui--should-show-package-p (package-name description)
+  "Return t if PACKAGE-NAME or DESCRIPTION matches current filter."
+  (if (string-empty-p bfepm-ui-filter-string)
+      t
+    (let ((filter-regex (regexp-quote bfepm-ui-filter-string)))
+      (or (string-match-p filter-regex package-name)
+          (and description (string-match-p filter-regex description))))))
 
 (provide 'bfepm-ui)
 

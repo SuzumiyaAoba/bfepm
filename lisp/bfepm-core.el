@@ -35,6 +35,13 @@
 (defvar bfepm--cache-directory nil
   "Directory for BFEPM cache.")
 
+;; Performance caching variables
+(defvar bfepm--directory-cache nil
+  "Cache for directory listings to improve performance.")
+
+(defvar bfepm--version-cache nil
+  "Cache for package version information.")
+
 (cl-defstruct bfepm-package
   "Structure representing a package."
   name
@@ -98,7 +105,7 @@
           (progn
             (message "Warning: bfepm-config module not available, using minimal configuration")
             (setq bfepm--config nil))))
-    (error 
+    (error
      (message "Warning: Failed to load configuration: %s" (error-message-string err))
      (setq bfepm--config nil))))
 
@@ -125,36 +132,88 @@
   (let ((package-dir (expand-file-name package-name (bfepm-core-get-packages-directory))))
     (file-directory-p package-dir)))
 
-(defun bfepm-core-get-installed-packages ()
-  "Get list of installed packages."
-  (when (file-directory-p (bfepm-core-get-packages-directory))
-    (directory-files (bfepm-core-get-packages-directory) nil "^[^.]")))
+(defun bfepm-core-get-installed-packages (&optional force-refresh)
+  "Get list of installed packages.
+When FORCE-REFRESH is non-nil, bypass cache and refresh from filesystem.
+Uses an internal cache with 60-second expiration to improve performance.
+Cache entries are stored as (directory-path cache-time file-list)."
+  (let ((packages-dir (bfepm-core-get-packages-directory)))
+    (when (file-directory-p packages-dir)
+      (let* ((cache-key packages-dir)
+             (cached-entry (assoc cache-key bfepm--directory-cache))
+             (cache-time (cadr cached-entry))
+             (cached-files (caddr cached-entry))
+             (current-time (current-time))
+             (cache-expired-p (or force-refresh
+                                  (not cached-entry)
+                                  (> (float-time (time-subtract current-time cache-time)) 60)))) ; 60 second cache
+        (if cache-expired-p
+            (let ((files (directory-files packages-dir nil "^[^.]")))
+              ;; Update or add cache entry
+              (if cached-entry
+                  (setcdr cached-entry (list current-time files))
+                (push (list cache-key current-time files) bfepm--directory-cache))
+              files)
+          cached-files)))))
 
-(defun bfepm-core-get-package-version (package-name)
-  "Get version of installed PACKAGE-NAME."
-  (let ((package-dir (expand-file-name package-name (bfepm-core-get-packages-directory))))
-    (when (file-directory-p package-dir)
-      (or (bfepm-core--get-version-from-bfepm-file package-dir)
-          (bfepm-core--get-version-from-pkg-file package-dir package-name)
-          (bfepm-core--get-version-from-main-file package-dir package-name)
-          (bfepm-core--get-version-from-directory-name package-name)
-          "unknown"))))
+(defun bfepm-core-get-package-version (package-name &optional force-refresh)
+  "Get version of installed PACKAGE-NAME.
+When FORCE-REFRESH is non-nil, bypass cache and refresh from filesystem."
+  (let* ((cache-key package-name)
+         (cached-entry (assoc cache-key bfepm--version-cache))
+         (cache-time (cadr cached-entry))
+         (cached-version (caddr cached-entry))
+         (current-time (current-time))
+         (cache-expired-p (or force-refresh
+                              (not cached-entry)
+                              (> (float-time (time-subtract current-time cache-time)) 300)))) ; 5 minute cache
+    (if cache-expired-p
+        (let ((package-dir (expand-file-name package-name (bfepm-core-get-packages-directory))))
+          (let ((version (when (file-directory-p package-dir)
+                           (or (bfepm-core--get-version-from-bfepm-file package-dir)
+                               (bfepm-core--get-version-from-pkg-file package-dir package-name)
+                               (bfepm-core--get-version-from-main-file package-dir package-name)
+                               (bfepm-core--get-version-from-directory-name package-name)
+                               "unknown"))))
+            ;; Update or add cache entry
+            (if cached-entry
+                (setcdr cached-entry (list current-time version))
+              (push (list cache-key current-time version) bfepm--version-cache))
+            version))
+      cached-version)))
+
+;; Cache management functions
+(defun bfepm-core--invalidate-cache (package-name)
+  "Invalidate caches for PACKAGE-NAME.
+Clears entire directory cache since package operations affect listings.
+Only clears specific package from version cache for targeted invalidation."
+  (setq bfepm--directory-cache nil ; Clear entire directory cache
+        bfepm--version-cache (delq (assoc package-name bfepm--version-cache) bfepm--version-cache)))
+
+(defun bfepm-core--clear-all-caches ()
+  "Clear all performance caches."
+  (setq bfepm--directory-cache nil
+        bfepm--version-cache nil))
 
 (defun bfepm-core--get-version-from-bfepm-file (package-dir)
   "Get version from .bfepm-version file in PACKAGE-DIR."
   (let ((version-file (expand-file-name ".bfepm-version" package-dir)))
-    (when (file-exists-p version-file)
+    (when (and (file-exists-p version-file)
+               (> (file-attribute-size (file-attributes version-file)) 0)) ; Check if file is not empty
       (condition-case nil
           (with-temp-buffer
-            (insert-file-contents version-file)
-            (let ((content (buffer-string)))
-              ;; Manual trim for compatibility
-              (replace-regexp-in-string "\\`[ \t\n\r]+" "" 
-                                        (replace-regexp-in-string "[ \t\n\r]+\\'" "" content))))
+            (insert-file-contents version-file nil 0 100) ; Read only first 100 chars for version
+            (goto-char (point-min))
+            (let ((content (buffer-substring-no-properties (point) (line-end-position))))
+              ;; Manual trim for compatibility - optimized with single regex
+              (if (string-match "\\`[ \t\n\r]*\\(.*?\\)[ \t\n\r]*\\'" content)
+                  (match-string 1 content)
+                content)))
         (error nil)))))
 
 (defun bfepm-core--get-version-from-pkg-file (package-dir package-name)
-  "Get version from PACKAGE-NAME-pkg.el file in PACKAGE-DIR."
+  "Get version from PACKAGE-NAME-pkg.el file in PACKAGE-DIR.
+PACKAGE-NAME is the name of the package to get version for."
   (let ((pkg-file (expand-file-name (format "%s-pkg.el" package-name) package-dir)))
     (when (file-exists-p pkg-file)
       (condition-case nil
@@ -178,7 +237,8 @@
         (error nil)))))
 
 (defun bfepm-core--get-version-from-directory-name (package-name)
-  "Extract version from directory name if it contains version info."
+  "Extract version from directory name if it contain version info.
+PACKAGE-NAME is the name of the package to extract version for."
   ;; Try to extract version from directory names like "package-20250426.1319"
   (let ((packages-dir (bfepm-core-get-packages-directory)))
     (when (file-directory-p packages-dir)

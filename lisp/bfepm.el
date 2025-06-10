@@ -36,7 +36,7 @@
         (require 'bfepm-config-minimal)
         (setq bfepm--config-available t)
         (message "BFEPM: Minimal bfepm-config loaded (TOML support not available)")))
-  (error 
+  (error
    (message "Warning: Could not load any bfepm-config version")
    (setq bfepm--config-available nil)))
 
@@ -46,7 +46,7 @@
       (require 'bfepm-package)
       (setq bfepm--package-available t)
       (message "BFEPM: bfepm-package loaded successfully"))
-  (error 
+  (error
    (message "Warning: bfepm-package could not be loaded")
    (setq bfepm--package-available nil)))
 
@@ -55,7 +55,7 @@
     (progn
       (require 'bfepm-ui)
       (message "BFEPM: bfepm-ui loaded successfully"))
-  (error 
+  (error
    (message "Warning: bfepm-ui could not be loaded")))
 
 ;; Declare external functions to avoid compilation warnings

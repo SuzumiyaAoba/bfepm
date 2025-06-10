@@ -10,17 +10,19 @@
 (require 'json)
 
 (defun bfepm-utils-message (format-string &rest args)
-  "Display a formatted message with BFEPM prefix."
+  "Display a formatted message with BFEPM prefix.
+FORMAT-STRING is the format string, ARGS are the arguments."
   (message "[BFEPM] %s" (apply #'format format-string args)))
 
 (defun bfepm-utils-error (format-string &rest args)
-  "Signal an error with BFEPM prefix."
+  "Signal an error with BFEPM prefix.
+FORMAT-STRING is the format string, ARGS are the arguments."
   (error "[BFEPM] %s" (apply #'format format-string args)))
 
 (defun bfepm-utils-version-compare (v1 v2)
   "Compare version strings V1 and V2.
 Return 1 if V1 > V2, -1 if V1 < V2, 0 if equal."
-  (if (and (bfepm-utils--is-melpa-date-version-p v1) 
+  (if (and (bfepm-utils--is-melpa-date-version-p v1)
            (bfepm-utils--is-melpa-date-version-p v2))
       ;; Both are MELPA date versions
       (let ((num1 (string-to-number (replace-regexp-in-string "\\." "" v1)))
@@ -125,7 +127,7 @@ MAX-RETRIES defaults to 3."
         (error
          (bfepm-utils-message "Download attempt %d failed: %s" attempt (error-message-string err))
          (when (= attempt retries)
-           (bfepm-utils-error "Failed to download %s after %d attempts: %s" 
+           (bfepm-utils-error "Failed to download %s after %d attempts: %s"
                              url retries (error-message-string err))))))
     success))
 

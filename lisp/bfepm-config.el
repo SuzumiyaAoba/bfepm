@@ -18,7 +18,7 @@
     (progn
       (require 'toml)
       (setq bfepm-config--toml-available t))
-  (error 
+  (error
    (message "Warning: TOML parser not available - TOML config files will not be supported")
    (setq bfepm-config--toml-available nil)))
 
@@ -65,7 +65,8 @@
     (error "TOML parser not available - cannot parse config file")))
 
 (defun bfepm-config--parse-packages (packages-data)
-  "Parse packages section from TOML data."
+  "Parse packages section from TOML data.
+PACKAGES-DATA is the raw package data from TOML parsing."
   (when packages-data
     (mapcar (lambda (entry)
               (let ((name (symbol-name (car entry)))
@@ -74,7 +75,8 @@
             packages-data)))
 
 (defun bfepm-config--parse-package-spec (name spec)
-  "Parse a single package specification."
+  "Parse a single package specification.
+NAME is the package name and SPEC is the specification data."
   (cond
    ((stringp spec)
     ;; Simple version specification: "latest" or "1.2.3"
@@ -94,7 +96,8 @@
    (t (bfepm-utils-error "Invalid package specification for %s: %s" name spec))))
 
 (defun bfepm-config--parse-sources (sources-data)
-  "Parse sources section from TOML data."
+  "Parse sources section from TOML data.
+SOURCES-DATA is the raw sources data from TOML parsing."
   (when sources-data
     (mapcar (lambda (entry)
               (let ((name (symbol-name (car entry)))
@@ -103,7 +106,8 @@
             sources-data)))
 
 (defun bfepm-config--parse-source-spec (spec)
-  "Parse a single source specification."
+  "Parse a single source specification.
+SPEC is the source specification data."
   (make-bfepm-source
    :name (alist-get 'name spec)
    :url (alist-get 'url spec)
@@ -124,7 +128,8 @@
       (write-file file))))
 
 (defun bfepm-config--to-toml (config)
-  "Convert bfepm-config structure to TOML-compatible alist."
+  "Convert bfepm-config structure to TOML-compatible alist.
+CONFIG is the bfepm-config structure to convert."
   (let ((result '()))
     
     ;; Add meta section
@@ -147,7 +152,7 @@
     (nreverse result)))
 
 (defun bfepm-config--sources-to-toml (sources)
-  "Convert sources list to TOML format."
+  "Convert SOURCES list to TOML format."
   (mapcar (lambda (source)
             (cons (intern (car source))
                   `((url . ,(bfepm-source-url (cdr source)))
@@ -156,7 +161,7 @@
           sources))
 
 (defun bfepm-config--packages-to-toml (packages)
-  "Convert packages list to TOML format."
+  "Convert PACKAGES list to TOML format."
   (mapcar (lambda (package)
             (cons (intern (bfepm-package-name package))
                   (bfepm-package-version package)))
@@ -174,27 +179,28 @@
              data "\n\n"))
 
 (defun bfepm-config--encode-section (section)
-  "Encode a TOML section."
+  "Encode a TOML SECTION."
   (mapconcat (lambda (entry)
                (let ((key (car entry))
                      (value (cdr entry)))
-                 (format "%s = %s" 
+                 (format "%s = %s"
                          (symbol-name key)
                          (bfepm-config--encode-value value))))
              section "\n"))
 
 (defun bfepm-config--encode-value (value)
-  "Encode a value for TOML."
+  "Encode a VALUE for TOML."
   (cond
    ((stringp value) (format "\"%s\"" value))
    ((numberp value) (number-to-string value))
    ((symbolp value) (format "\"%s\"" (symbol-name value)))
-   ((listp value) (format "[%s]" 
+   ((listp value) (format "[%s]"
                           (mapconcat #'bfepm-config--encode-value value ", ")))
    (t (format "\"%s\"" value))))
 
 (defun bfepm-config-validate (config)
-  "Validate BFEPM configuration structure."
+  "Validate BFEPM configuration structure.
+CONFIG is the configuration structure to validate."
   (unless (bfepm-config-p config)
     (bfepm-utils-error "Invalid configuration structure"))
   
