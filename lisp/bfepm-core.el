@@ -134,7 +134,9 @@
 
 (defun bfepm-core-get-installed-packages (&optional force-refresh)
   "Get list of installed packages.
-When FORCE-REFRESH is non-nil, bypass cache and refresh from filesystem."
+When FORCE-REFRESH is non-nil, bypass cache and refresh from filesystem.
+Uses an internal cache with 60-second expiration to improve performance.
+Cache entries are stored as (directory-path cache-time file-list)."
   (let ((packages-dir (bfepm-core-get-packages-directory)))
     (when (file-directory-p packages-dir)
       (let* ((cache-key packages-dir)
@@ -182,8 +184,10 @@ When FORCE-REFRESH is non-nil, bypass cache and refresh from filesystem."
 
 ;; Cache management functions
 (defun bfepm-core--invalidate-cache (package-name)
-  "Invalidate caches for PACKAGE-NAME."
-  (setq bfepm--directory-cache nil ; Invalidate directory cache
+  "Invalidate caches for PACKAGE-NAME.
+Clears entire directory cache since package operations affect listings.
+Only clears specific package from version cache for targeted invalidation."
+  (setq bfepm--directory-cache nil ; Clear entire directory cache
         bfepm--version-cache (delq (assoc package-name bfepm--version-cache) bfepm--version-cache)))
 
 (defun bfepm-core--clear-all-caches ()

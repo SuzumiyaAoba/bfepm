@@ -482,7 +482,8 @@
 (defun bfepm-ui-install-marked ()
   "Install all marked packages."
   (interactive)
-  (let ((marked-packages '()))
+  (let ((marked-packages '())
+        (failed-packages '()))
     (save-excursion
       (goto-char (point-min))
       (while (not (eobp))
@@ -500,17 +501,22 @@
                   (bfepm-utils-message "Installing %s..." package-name)
                   (bfepm-package-install package-name))
               (error
+               (push (cons package-name (error-message-string err)) failed-packages)
                (bfepm-utils-message "Failed to install %s: %s" 
                                    package-name (error-message-string err)))))
           (bfepm-ui-unmark-all)
           (bfepm-ui-refresh)
-          (message "Batch installation completed"))
+          (if failed-packages
+              (message "Batch installation completed with %d failures. Check *Messages* for details." 
+                      (length failed-packages))
+            (message "Batch installation completed successfully")))
       (message "No packages marked for installation"))))
 
 (defun bfepm-ui-remove-marked ()
   "Remove all marked packages."
   (interactive)
-  (let ((marked-packages '()))
+  (let ((marked-packages '())
+        (failed-packages '()))
     (save-excursion
       (goto-char (point-min))
       (while (not (eobp))
@@ -528,11 +534,15 @@
                   (bfepm-utils-message "Removing %s..." package-name)
                   (bfepm-package-remove package-name))
               (error
+               (push (cons package-name (error-message-string err)) failed-packages)
                (bfepm-utils-message "Failed to remove %s: %s" 
                                    package-name (error-message-string err)))))
           (bfepm-ui-unmark-all)
           (bfepm-ui-refresh)
-          (message "Batch removal completed"))
+          (if failed-packages
+              (message "Batch removal completed with %d failures. Check *Messages* for details." 
+                      (length failed-packages))
+            (message "Batch removal completed successfully")))
       (message "No packages marked for removal"))))
 
 (defvar bfepm-ui-filter-string ""
