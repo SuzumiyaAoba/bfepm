@@ -250,7 +250,8 @@
     (let ((result (bfepm-package--find-in-git "test-package" git-source)))
       (should (listp result))
       (should (string= (car result) "v1.0.0"))
-      (should (eq (cadddr result) 'git)))))
+      (should (eq (cadddr result) 'git))
+      (should (equal (nth 4 result) git-source)))))
 
 (ert-deftest bfepm-package--find-in-git-no-ref ()
   "Test finding packages in git sources without specific ref."
@@ -259,7 +260,8 @@
     (let ((result (bfepm-package--find-in-git "test-package" git-source)))
       (should (listp result))
       (should (string= (car result) "latest"))
-      (should (eq (cadddr result) 'git)))))
+      (should (eq (cadddr result) 'git))
+      (should (equal (nth 4 result) git-source)))))
 
 (ert-deftest bfepm-package--get-git-version-latest ()
   "Test getting git version for latest ref."
@@ -288,7 +290,7 @@
 (ert-deftest bfepm-package--download-and-install-git ()
   "Test git package installation with mocking."
   (let ((test-package (make-bfepm-package :name "git-test-package" :version "latest"))
-        (test-info '("latest" nil "Git package from https://github.com/test/repo.git" git))
+        (test-info '("latest" nil "Git package from https://github.com/test/repo.git" git (:url "https://github.com/test/repo.git" :type "git" :ref "main")))
         (bfepm-test-cloned nil)
         (bfepm-test-version-saved nil))
     (cl-letf (((symbol-function 'bfepm-core-get-config)

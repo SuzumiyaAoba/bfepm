@@ -181,8 +181,8 @@ If SHALLOW is non-nil, perform a shallow clone."
     (when shallow
       (setq git-cmd (append git-cmd '("--depth" "1"))))
     
-    ;; Add specific branch/tag if specified
-    (when (and ref (not (string= ref "latest")))
+    ;; Add specific branch/tag if specified, but not if it's a commit hash
+    (when (and ref (not (string= ref "latest")) (not (string-match-p "^[a-f0-9]\\{7,40\\}$" ref)))
       (setq git-cmd (append git-cmd (list "--branch" ref))))
     
     ;; Add URL and target directory
@@ -193,8 +193,8 @@ If SHALLOW is non-nil, perform a shallow clone."
       (unless (= result 0)
         (bfepm-utils-error "Git clone failed with exit code %d" result))
       
-      ;; If we need a specific commit (not a branch/tag), checkout after clone
-      (when (and ref 
+      ;; If ref is a commit hash, checkout after clone
+      (when (and ref
                  (not (string= ref "latest"))
                  (string-match-p "^[a-f0-9]\\{7,40\\}$" ref)) ; Looks like a commit hash
         (bfepm-utils-git-checkout target-dir ref))

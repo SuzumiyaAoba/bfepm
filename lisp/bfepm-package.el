@@ -179,7 +179,8 @@ or a bfepm-package structure."
     (when url
       ;; For git sources, we return a synthetic package info
       ;; The version will be determined when actually cloning
-      (list (or ref "latest") nil (format "Git package from %s" url) 'git))))
+      ;; Include source information in the package info
+      (list (or ref "latest") nil (format "Git package from %s" url) 'git source))))
 
 (defun bfepm-package--fetch-archive-contents (archive-url)
   "Fetch archive contents from ARCHIVE-URL with error handling."
@@ -426,16 +427,11 @@ PACKAGE-NAME, VERSION, and KIND are used for checksum verification."
 
   t)
 
-(defun bfepm-package--download-and-install-git (package _package-info)
+(defun bfepm-package--download-and-install-git (package package-info)
   "Download and install git PACKAGE using PACKAGE-INFO."
   (let* ((package-name (bfepm-package-name package))
-         (config (bfepm-core-get-config))
-         (sources (if config (bfepm-config-sources config) (bfepm-package--get-default-sources)))
-         (git-source (cl-find-if (lambda (src)
-                                   (and (string= (bfepm-package--get-source-type (cdr src)) "git")
-                                        (bfepm-package--find-in-git package-name (cdr src))))
-                                 sources))
-         (source-config (cdr git-source))
+         (info-list (if (vectorp package-info) (append package-info nil) package-info))
+         (source-config (nth 4 info-list)) ; Source config is included in package-info
          (url (bfepm-package--get-source-url source-config))
          (ref (or (plist-get source-config :ref) 
                   (bfepm-package-version package)
