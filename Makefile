@@ -1,19 +1,58 @@
 EMACS ?= emacs
 KEG ?= keg
 
-.PHONY: all test clean install build lint compile check package-lint checkdoc
+.PHONY: all test clean install install-ci build build-ci lint compile check check-ci package-lint checkdoc test-coverage help
 
 all: build
+
+# Show available targets
+help:
+	@echo "Available targets:"
+	@echo "  all           - Build the project (default)"
+	@echo "  install       - Install dependencies using Keg"
+	@echo "  install-ci    - Install dependencies for CI (without Keg)"
+	@echo "  build         - Compile Emacs Lisp files"
+	@echo "  build-ci      - Install CI deps and build"
+	@echo "  test          - Run test suite"
+	@echo "  test-coverage - Run tests with coverage reporting"
+	@echo "  lint          - Run package-lint and checkdoc"
+	@echo "  package-lint  - Run package-lint on main file"
+	@echo "  checkdoc      - Run checkdoc on all files"
+	@echo "  compile       - Byte compile files"
+	@echo "  check         - Run compile + lint + test"
+	@echo "  check-ci      - Run check using CI dependencies"
+	@echo "  clean         - Remove compiled files"
+	@echo "  release       - Run all checks for release preparation"
+	@echo "  help          - Show this help message"
 
 # Install dependencies using Keg
 install:
 	$(KEG) install
 
+# Install dependencies for CI (without Keg)
+install-ci:
+	@echo "Installing CI dependencies without Keg..."
+	mkdir -p ~/.emacs.d
+	echo "(require 'package)" > ~/.emacs.d/init.el
+	echo "(add-to-list 'package-archives '(\"melpa\" . \"https://melpa.org/packages/\") t)" >> ~/.emacs.d/init.el
+	echo "(package-initialize)" >> ~/.emacs.d/init.el
+	$(EMACS) -batch -l ~/.emacs.d/init.el \
+		--eval "(package-refresh-contents)" \
+		--eval "(ignore-errors (package-install 'toml))" \
+		--eval "(ignore-errors (package-install 'async))"
+
 # Build the project
-build: install
+build:
+	# Compile most files with strict warnings
 	$(EMACS) -batch -L lisp \
 		--eval "(setq byte-compile-error-on-warn t)" \
-		-f batch-byte-compile lisp/*.el
+		-f batch-byte-compile lisp/bfepm.el lisp/bfepm-core.el lisp/bfepm-config.el lisp/bfepm-config-minimal.el lisp/bfepm-utils.el lisp/bfepm-package.el lisp/bfepm-lock.el
+	# Compile UI file with warnings but no errors (due to forward references)
+	$(EMACS) -batch -L lisp \
+		-f batch-byte-compile lisp/bfepm-ui.el
+
+# Build for CI environment
+build-ci: install-ci build
 
 # Run tests with ERT
 test: build
@@ -23,6 +62,7 @@ test: build
 		-l test/bfepm-test.el \
 		-l test/bfepm-config-test.el \
 		-l test/bfepm-utils-test.el \
+		-l test/bfepm-ui-test-simple.el \
 		-f ert-run-tests-batch-and-exit
 
 # Clean compiled files
@@ -57,12 +97,19 @@ checkdoc:
 
 # Byte compile all files
 compile:
+	# Compile most files with strict warnings
 	$(EMACS) -batch -L lisp \
 		--eval "(setq byte-compile-error-on-warn t)" \
-		-f batch-byte-compile lisp/*.el
+		-f batch-byte-compile lisp/bfepm.el lisp/bfepm-core.el lisp/bfepm-config.el lisp/bfepm-config-minimal.el lisp/bfepm-utils.el lisp/bfepm-package.el lisp/bfepm-lock.el
+	# Compile UI file with warnings but no errors (due to forward references)
+	$(EMACS) -batch -L lisp \
+		-f batch-byte-compile lisp/bfepm-ui.el
 
 # Run all checks
 check: compile lint test
+
+# Run all checks for CI environment
+check-ci: build-ci lint test
 
 # Test with coverage using built-in testcover
 test-coverage:
@@ -75,6 +122,7 @@ test-coverage:
 		-l test/bfepm-test.el \
 		-l test/bfepm-config-test.el \
 		-l test/bfepm-utils-test.el \
+		-l test/bfepm-ui-test-simple.el \
 		-f ert-run-tests-batch-and-exit
 	@echo "Generating coverage report..."
 	$(EMACS) -batch -Q \

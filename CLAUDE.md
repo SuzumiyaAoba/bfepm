@@ -6,11 +6,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Building and Testing
 ```bash
+# Show all available targets
+make help
+
 # Install dependencies using Keg
 make install
 
+# Install dependencies for CI (without Keg)
+make install-ci
+
 # Build the project
 make build
+
+# Build for CI environment
+make build-ci
 
 # Run tests with ERT
 make test
@@ -24,29 +33,32 @@ make compile
 # Full check (compile + lint + test)
 make check
 
+# Run checks with CI dependencies
+make check-ci
+
 # Test with coverage reporting
 make test-coverage
+
+# Clean compiled files
+make clean
 ```
 
-### Package Management
+### Running Individual Tests
 ```bash
-# Install dependencies via Keg
-keg install
-
-# Run tests with ERT
-emacs -batch -L . -L test \
+# Run a specific test file
+emacs -batch -L lisp -L test \
   --eval "(require 'ert)" \
   -l test/bfepm-test.el \
   -f ert-run-tests-batch-and-exit
 
-# Byte-compile all files
-emacs -batch -L . -f batch-byte-compile *.el
+# Run a specific test by pattern
+emacs -batch -L lisp -L test \
+  --eval "(require 'ert)" \
+  -l test/bfepm-test.el \
+  --eval "(ert-run-tests-batch-and-exit \"test-pattern\")"
 
-# Package linting
-emacs -batch -L . \
-  --eval "(require 'package-lint)" \
-  --eval "(package-lint-batch-and-exit)" \
-  bfepm.el
+# Check package dependencies
+keg install
 ```
 
 ## Architecture Overview
@@ -54,12 +66,14 @@ emacs -batch -L . \
 bfepm is an Emacs Lisp package manager with a modular, layered architecture:
 
 ### Core Components
-- **bfepm.el**: Main entry point with interactive commands
-- **bfepm-core.el**: Core functionality, data structures, and initialization
-- **bfepm-config.el**: TOML configuration file parsing and validation
-- **bfepm-package.el**: Package installation, removal, and management
-- **bfepm-utils.el**: Utility functions for downloads, version comparison, and file operations
-- **bfepm-lock.el**: Lock file generation and verification for reproducible installs
+- **bfepm.el**: Main entry point with interactive commands (lisp/bfepm.el)
+- **bfepm-core.el**: Core functionality, data structures, and initialization (lisp/bfepm-core.el)
+- **bfepm-config.el**: TOML configuration file parsing and validation (lisp/bfepm-config.el)
+- **bfepm-config-minimal.el**: Fallback configuration without TOML dependency (lisp/bfepm-config-minimal.el)
+- **bfepm-package.el**: Package installation, removal, and management (lisp/bfepm-package.el)
+- **bfepm-utils.el**: Utility functions for downloads, version comparison, and file operations (lisp/bfepm-utils.el)
+- **bfepm-lock.el**: Lock file generation and verification for reproducible installs (lisp/bfepm-lock.el)
+- **bfepm-ui.el**: Interactive tabulated package management interface (lisp/bfepm-ui.el)
 
 ### Data Structures
 - `bfepm-package`: Represents a package with name, version, source, dependencies, config, and status
@@ -92,11 +106,12 @@ bfepm uses TOML for configuration with support for:
 4. **Profile Support**: Different configurations for different use cases
 
 ### Testing Strategy
-- **ERT**: Emacs standard testing framework for robust test execution
+- **ERT**: Emacs standard testing framework for robust test execution (35 tests)
 - **Unit Tests**: Test individual functions and data structures with `ert-deftest`
 - **Integration Tests**: Test component interactions and workflows
-- **Coverage Reporting**: Using undercover.el for test coverage analysis
+- **Coverage Reporting**: Using built-in testcover for test coverage analysis
 - **Mock-friendly**: Utilities designed for easy testing and isolation
+- **CI/CD Integration**: Streamlined pipeline using Makefile targets
 
 ## Git Workflow Guidelines
 

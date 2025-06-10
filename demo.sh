@@ -9,8 +9,11 @@ echo "======================"
 DEMO_DIR=$(mktemp -d)
 echo "Demo directory: $DEMO_DIR"
 
-# Copy all source files
-cp ./*.el "$DEMO_DIR/" 2>/dev/null || true
+# Copy all source files from lisp directory
+mkdir -p "$DEMO_DIR/lisp"
+cp ./lisp/*.el "$DEMO_DIR/lisp/" 2>/dev/null || true
+# Also copy to root for backward compatibility with demo-init.el
+cp ./lisp/*.el "$DEMO_DIR/" 2>/dev/null || true
 
 # Copy sample files
 mkdir -p "$DEMO_DIR/sample"
@@ -29,12 +32,20 @@ echo "🚀 Starting BFEPM Interactive Demo..."
 echo "======================================"
 echo ""
 echo "Available commands in Emacs:"
-echo "  C-c e c  - Show configuration"
+echo "  === Package Management UI ==="
+echo "  C-c e g  - Open BFEPM package management UI (NEW!)"
+echo "  === Quick Install ==="
 echo "  C-c e i  - Install company package (demo)"
+echo "  C-c e 1  - Install selected package"
+echo "  C-c e t  - Install packages from sample/bfepm.toml"
+echo "  C-c e M  - Mock install packages (safe demo)"
+echo "  === Management ==="
+echo "  C-c e c  - Show configuration"
 echo "  C-c e l  - List packages"
 echo "  C-c e I  - Interactive package install"
 echo "  C-c e R  - Remove package"
 echo "  C-c e U  - Update packages"
+echo "  C-c e h  - Show all commands"
 echo ""
 echo "💡 Press C-x C-c to exit Emacs and return to shell"
 echo ""
@@ -44,10 +55,18 @@ cd "$DEMO_DIR"
 
 # Start Emacs in terminal mode with demo configuration
 echo "🚀 Starting Emacs with BFEPM demo..."
-emacs -nw -Q -L . -l sample/demo-init.el || {
-  echo ""
-  echo "📋 Emacs exited. Demo completed."
-}
+if [ -t 0 ]; then
+  emacs -nw -Q -L . -L lisp -l sample/demo-init.el || {
+    echo ""
+    echo "📋 Emacs exited. Demo completed."
+  }
+else
+  echo "⚠️  Warning: Not running in a terminal. Starting Emacs in GUI mode..."
+  emacs -Q -L . -L lisp -l sample/demo-init.el || {
+    echo ""
+    echo "📋 Emacs exited. Demo completed."
+  }
+fi
 
 # Cleanup
 echo ""

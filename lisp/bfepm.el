@@ -40,7 +40,7 @@
    (message "Warning: Could not load any bfepm-config version")
    (setq bfepm--config-available nil)))
 
-;; Load epm-package module
+;; Load bfepm-package module
 (condition-case nil
     (progn
       (require 'bfepm-package)
@@ -50,12 +50,23 @@
    (message "Warning: bfepm-package could not be loaded")
    (setq bfepm--package-available nil)))
 
+;; Load bfepm-ui module
+(condition-case nil
+    (progn
+      (require 'bfepm-ui)
+      (message "BFEPM: bfepm-ui loaded successfully"))
+  (error 
+   (message "Warning: bfepm-ui could not be loaded")))
+
 ;; Declare external functions to avoid compilation warnings
 (declare-function bfepm-package-list "bfepm-package")
 (declare-function bfepm-package-install "bfepm-package")
 (declare-function bfepm-package-update "bfepm-package")
 (declare-function bfepm-package-update-all "bfepm-package")
 (declare-function bfepm-package-remove "bfepm-package")
+(declare-function bfepm-ui "bfepm-ui")
+(declare-function bfepm-ui-show-available-external "bfepm-ui")
+(declare-function bfepm-ui-show-installed-external "bfepm-ui")
 
 (defcustom bfepm-config-file (expand-file-name "bfepm.toml" user-emacs-directory)
   "Path to the main BFEPM configuration file."
@@ -95,6 +106,12 @@
   (if bfepm--package-available
       (bfepm-package-list)
     (message "Package listing not available (bfepm-package module not loaded)")))
+
+;;;###autoload
+(defun bfepm-ui-show ()
+  "Show the BFEPM package management interface."
+  (interactive)
+  (bfepm-ui))
 
 ;;;###autoload
 (defun bfepm-init ()
