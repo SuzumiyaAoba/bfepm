@@ -12,10 +12,11 @@ bfepm is currently in active development. Core functionality is implemented and 
 - ✅ Core foundation with data structures
 - ✅ Configuration loading (TOML + minimal fallback)
 - ✅ Basic package management operations
-- ✅ Interactive package management UI
+- ✅ Interactive package management UI with tabulated interface
 - ✅ Package installation with retry logic and error recovery
-- ✅ Comprehensive test suite (33 tests)
-- ✅ CI/CD pipeline
+- ✅ Comprehensive test suite (35 tests)
+- ✅ Streamlined CI/CD pipeline with Makefile integration
+- ✅ Demo environment with interactive package management
 - 🚧 Working on: Dependency resolution and lock file improvements
 - 📋 Next: Multi-source support and profile system
 
@@ -84,7 +85,8 @@ Load bfepm in your Emacs configuration:
 ;; M-x bfepm-list
 
 ;; Package Management UI
-;; M-x bfepm-ui-show
+;; M-x bfepm-ui                      # Main UI (installed packages)
+;; M-x bfepm-ui-show-available-external  # Available packages
 ```
 
 ## 🎮 Interactive Demo
@@ -194,14 +196,21 @@ Storage Layer
 - **`lisp/bfepm-package.el`** - Package management operations
 - **`lisp/bfepm-utils.el`** - Utility functions and error handling
 - **`lisp/bfepm-lock.el`** - Lock file generation and management
+- **`lisp/bfepm-ui.el`** - Interactive tabulated package management interface
 
 ## 🧪 Development
 
 ### Building and Testing
 
 ```bash
-# Install dependencies
+# Show all available targets
+make help
+
+# Install dependencies using Keg
 make install
+
+# For CI environments (without Keg)
+make install-ci
 
 # Build project
 make build
@@ -212,11 +221,17 @@ make test
 # Run tests with coverage
 make test-coverage
 
-# Run linting
+# Run linting (package-lint + checkdoc)
 make lint
 
 # Run all checks (compile + lint + test)
 make check
+
+# Run checks with CI dependencies
+make check-ci
+
+# Clean compiled files
+make clean
 ```
 
 ### Requirements
@@ -235,13 +250,15 @@ The project includes comprehensive tests using ERT (Emacs Regression Testing):
 # Run specific test suite
 emacs -batch -L lisp -L test -l test/bfepm-test.el -f ert-run-tests-batch-and-exit
 
-# Current test coverage: 31 tests across all modules
+# Current test coverage: 35 tests across all modules
 ```
 
 ## 📚 Documentation
 
 - [Architecture Design](docs/ARCHITECTURE.md) - System architecture and component design
 - [Implementation Roadmap](docs/IMPLEMENTATION_ROADMAP.md) - Current status and future plans
+- [User Interface Guide](docs/UI_GUIDE.md) - Package management UI documentation
+- [Build System](docs/BUILD_SYSTEM.md) - Build system and development workflow
 - [Concept Document](docs/CONCEPT.md) - Project vision and goals
 - [Legacy Implementation Plan](docs/IMPLEMENTATION_PLAN.md) - Original development plan
 
@@ -257,8 +274,7 @@ bfepm is in active development and welcomes contributors!
    ```bash
    git checkout -b feature/your-feature
    # Make changes
-   make test  # Ensure tests pass
-   make lint  # Check code style
+   make check  # Run full quality checks (compile + lint + test)
    ```
 4. **Add tests** for new functionality
 5. **Update documentation** as needed

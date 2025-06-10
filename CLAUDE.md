@@ -6,11 +6,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Building and Testing
 ```bash
+# Show all available targets
+make help
+
 # Install dependencies using Keg
 make install
 
+# Install dependencies for CI (without Keg)
+make install-ci
+
 # Build the project
 make build
+
+# Build for CI environment
+make build-ci
 
 # Run tests with ERT
 make test
@@ -24,8 +33,14 @@ make compile
 # Full check (compile + lint + test)
 make check
 
+# Run checks with CI dependencies
+make check-ci
+
 # Test with coverage reporting
 make test-coverage
+
+# Clean compiled files
+make clean
 ```
 
 ### Running Individual Tests
@@ -91,11 +106,12 @@ bfepm uses TOML for configuration with support for:
 4. **Profile Support**: Different configurations for different use cases
 
 ### Testing Strategy
-- **ERT**: Emacs standard testing framework for robust test execution
+- **ERT**: Emacs standard testing framework for robust test execution (35 tests)
 - **Unit Tests**: Test individual functions and data structures with `ert-deftest`
 - **Integration Tests**: Test component interactions and workflows
-- **Coverage Reporting**: Using undercover.el for test coverage analysis
+- **Coverage Reporting**: Using built-in testcover for test coverage analysis
 - **Mock-friendly**: Utilities designed for easy testing and isolation
+- **CI/CD Integration**: Streamlined pipeline using Makefile targets
 
 ## Git Workflow Guidelines
 
