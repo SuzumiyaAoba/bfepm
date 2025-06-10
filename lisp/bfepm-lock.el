@@ -64,7 +64,7 @@
 (defun bfepm-lock--detect-version (package-dir)
   "Detect version of package in PACKAGE-DIR."
   ;; This is a simplified version - real implementation would parse package files
-  (let ((pkg-file (expand-file-name (concat (file-name-nondirectory package-dir) "-pkg.el") 
+  (let ((pkg-file (expand-file-name (concat (file-name-nondirectory package-dir) "-pkg.el")
                                     package-dir)))
     (if (file-exists-p pkg-file)
         (with-temp-buffer
@@ -101,7 +101,7 @@
     (warnings . ())))
 
 (defun bfepm-lock-save (lock &optional file)
-  "Save LOCK to FILE (default: bfepm.lock in user-emacs-directory)."
+  "Save LOCK to FILE (default: bfepm.lock in \='user-emacs-directory\=')."
   (let ((lock-file (or file (expand-file-name bfepm-lock-file-name user-emacs-directory))))
     (with-temp-buffer
       (insert (bfepm-lock--to-toml lock))
@@ -123,7 +123,7 @@
    (bfepm-lock--encode-section (bfepm-lock-resolution lock))))
 
 (defun bfepm-lock--encode-section (section)
-  "Encode a TOML section."
+  "Encode a TOML SECTION."
   (mapconcat (lambda (entry)
                (format "%s = %s"
                        (symbol-name (car entry))
@@ -132,14 +132,14 @@
              "\n"))
 
 (defun bfepm-lock--encode-package (package)
-  "Encode a package entry for TOML."
+  "Encode a PACKAGE entry for TOML."
   (bfepm-lock--encode-section
    `((version . ,(bfepm-lock-package-version package))
      (source . ,(bfepm-lock-package-source package))
      (checksum . ,(bfepm-lock-package-checksum package)))))
 
 (defun bfepm-lock--encode-value (value)
-  "Encode a value for TOML."
+  "Encode a VALUE for TOML."
   (cond
    ((stringp value) (format "\"%s\"" value))
    ((numberp value) (number-to-string value))
@@ -148,7 +148,7 @@
    (t (format "\"%s\"" value))))
 
 (defun bfepm-lock-load (&optional file)
-  "Load lock file from FILE (default: bfepm.lock in user-emacs-directory)."
+  "Load lock file from FILE (default: bfepm.lock in \='user-emacs-directory\=')."
   (let ((lock-file (or file (expand-file-name bfepm-lock-file-name user-emacs-directory))))
     (if (file-exists-p lock-file)
         (condition-case err
