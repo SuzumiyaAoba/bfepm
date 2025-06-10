@@ -152,6 +152,113 @@
       (when (file-exists-p test-file2)
         (delete-file test-file2)))))
 
+;;; Git Utility Tests
+
+(ert-deftest bfepm-utils-git-clone-test ()
+  "Test git clone functionality with a mock."
+  (let ((test-url "https://github.com/test/repo.git")
+        (test-dir (expand-file-name "test-git-clone" temporary-file-directory)))
+    (unwind-protect
+        (progn
+          (when (file-exists-p test-dir)
+            (delete-directory test-dir t))
+          ;; Mock call-process to simulate successful git clone
+          (cl-letf (((symbol-function 'call-process)
+                     (lambda (program &rest args)
+                       (when (string= program "git")
+                         (make-directory test-dir t)
+                         (with-temp-file (expand-file-name "test.el" test-dir)
+                           (insert ";;; Test file\n"))
+                         0))))
+            (should-not (file-exists-p test-dir))
+            (bfepm-utils-git-clone test-url test-dir)
+            (should (file-directory-p test-dir))))
+      (when (file-exists-p test-dir)
+        (delete-directory test-dir t)))))
+
+(ert-deftest bfepm-utils-git-clone-with-ref-test ()
+  "Test git clone with specific reference."
+  (let ((test-url "https://github.com/test/repo.git")
+        (test-dir (expand-file-name "test-git-clone-ref" temporary-file-directory))
+        (test-ref "v1.0.0")
+        (call-process-args nil))
+    (unwind-protect
+        (progn
+          (when (file-exists-p test-dir)
+            (delete-directory test-dir t))
+          ;; Mock call-process to capture arguments
+          (cl-letf (((symbol-function 'call-process)
+                     (lambda (program &rest args)
+                       (setq call-process-args (cons program args))
+                       (when (string= program "git")
+                         (make-directory test-dir t)
+                         0))))
+            (bfepm-utils-git-clone test-url test-dir test-ref)
+            (should (member "--branch" call-process-args))
+            (should (member test-ref call-process-args))))
+      (when (file-exists-p test-dir)
+        (delete-directory test-dir t)))))
+
+(ert-deftest bfepm-utils-git-clone-shallow-test ()
+  "Test git clone with shallow option."
+  (let ((test-url "https://github.com/test/repo.git")
+        (test-dir (expand-file-name "test-git-clone-shallow" temporary-file-directory))
+        (call-process-args nil))
+    (unwind-protect
+        (progn
+          (when (file-exists-p test-dir)
+            (delete-directory test-dir t))
+          ;; Mock call-process to capture arguments
+          (cl-letf (((symbol-function 'call-process)
+                     (lambda (program &rest args)
+                       (setq call-process-args (cons program args))
+                       (when (string= program "git")
+                         (make-directory test-dir t)
+                         0))))
+            (bfepm-utils-git-clone test-url test-dir nil t)
+            (should (member "--depth" call-process-args))
+            (should (member "1" call-process-args))))
+      (when (file-exists-p test-dir)
+        (delete-directory test-dir t)))))
+
+(ert-deftest bfepm-utils-git-get-commit-hash-test ()
+  "Test getting git commit hash."
+  (let ((test-dir (expand-file-name "test-git-commit" temporary-file-directory))
+        (test-hash "abc123def456"))
+    (unwind-protect
+        (progn
+          (make-directory test-dir t)
+          ;; Mock call-process to return test hash
+          (cl-letf (((symbol-function 'call-process)
+                     (lambda (program &rest args)
+                       (when (and (string= program "git")
+                                  (member "rev-parse" args))
+                         (insert test-hash "\n")
+                         0))))
+            (let ((default-directory test-dir))
+              (should (string= test-hash (bfepm-utils-git-get-commit-hash test-dir))))))
+      (when (file-exists-p test-dir)
+        (delete-directory test-dir t)))))
+
+(ert-deftest bfepm-utils-git-get-latest-tag-test ()
+  "Test getting latest git tag."
+  (let ((test-dir (expand-file-name "test-git-tag" temporary-file-directory))
+        (test-tag "v1.2.3"))
+    (unwind-protect
+        (progn
+          (make-directory test-dir t)
+          ;; Mock call-process to return test tag
+          (cl-letf (((symbol-function 'call-process)
+                     (lambda (program &rest args)
+                       (when (and (string= program "git")
+                                  (member "describe" args))
+                         (insert test-tag "\n")
+                         0))))
+            (let ((default-directory test-dir))
+              (should (string= test-tag (bfepm-utils-git-get-latest-tag test-dir))))))
+      (when (file-exists-p test-dir)
+        (delete-directory test-dir t)))))
+
 (provide 'bfepm-utils-test)
 
 ;;; bfepm-utils-test.el ends here

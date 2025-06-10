@@ -12,6 +12,27 @@
 (require 'bfepm-utils)
 ;; bfepm-config is optional - loaded conditionally
 
+;; Declare internal functions defined later in file
+(declare-function bfepm-package--get-package-checksum "bfepm-package")
+(declare-function bfepm-package-update "bfepm-package")
+(declare-function bfepm-package-remove "bfepm-package")
+(declare-function bfepm-package--install-single-file "bfepm-package")
+(declare-function bfepm-package--extract-tar-package "bfepm-package")
+(declare-function bfepm-package--save-version-info "bfepm-package")
+(declare-function bfepm-package--verify-installation "bfepm-package")
+(declare-function bfepm-package--extract-and-install "bfepm-package")
+(declare-function bfepm-package--install-dependencies "bfepm-package")
+(declare-function bfepm-package--download-with-checksum "bfepm-package")
+(declare-function bfepm-package--build-archive-url "bfepm-package")
+(declare-function bfepm-package--fetch-archive-contents "bfepm-package")
+(declare-function bfepm-package--get-archive-contents "bfepm-package")
+(declare-function bfepm-package--find-in-git "bfepm-package")
+(declare-function bfepm-package--find-in-elpa "bfepm-package")
+(declare-function bfepm-package--find-in-source "bfepm-package")
+(declare-function bfepm-package--download-and-install "bfepm-package")
+(declare-function bfepm-package--download-and-install-git "bfepm-package")
+(declare-function bfepm-package--find-package "bfepm-package")
+
 (defvar bfepm-package--melpa-archive-url "https://melpa.org/packages/archive-contents"
   "URL for MELPA archive contents.")
 
@@ -107,7 +128,11 @@ or a bfepm-package structure."
                                   requested-version available-version))))
 
           ;; Download and install
-          (bfepm-package--download-and-install package package-info))))))
+          (let* ((info-list (if (vectorp package-info) (append package-info nil) package-info))
+                 (kind (cadddr info-list)))
+            (if (eq kind 'git)
+                (bfepm-package--download-and-install-git package package-info)
+              (bfepm-package--download-and-install package package-info)))))))
 
 (defun bfepm-package--find-package (package config)
   "Find PACKAGE in available sources from CONFIG."
@@ -147,11 +172,14 @@ or a bfepm-package structure."
           (push (cons cache-key contents) bfepm-package--archive-cache)
           contents))))
 
-(defun bfepm-package--find-in-git (package-name source)
-  "Find PACKAGE-NAME in git SOURCE."
-  ;; Stub implementation - would implement git-based package discovery
-  (bfepm-utils-error "Git source support not yet implemented for %s from %s"
-                     package-name source))
+(defun bfepm-package--find-in-git (_package-name source)
+  "Find package in git SOURCE."
+  (let ((url (bfepm-package--get-source-url source))
+        (ref (plist-get source :ref)))
+    (when url
+      ;; For git sources, we return a synthetic package info
+      ;; The version will be determined when actually cloning
+      (list (or ref "latest") nil (format "Git package from %s" url) 'git))))
 
 (defun bfepm-package--fetch-archive-contents (archive-url)
   "Fetch archive contents from ARCHIVE-URL with error handling."
@@ -389,7 +417,7 @@ PACKAGE-NAME, VERSION, and KIND are used for checksum verification."
                (> (file-attribute-size (file-attributes local-file)) 0))
     (bfepm-utils-error "Downloaded file %s is empty or missing" local-file))
 
-  ;; Optional checksum verification (currently not available for MELPA)
+  ;; Optional checksum verification (currently not available for MELPA)  
   (let ((expected-checksum (bfepm-package--get-package-checksum package-name version kind)))
     (when expected-checksum
       (bfepm-utils-message "Verifying checksum for %s" package-name)
@@ -397,6 +425,77 @@ PACKAGE-NAME, VERSION, and KIND are used for checksum verification."
         (bfepm-utils-error "Checksum verification failed for %s" package-name))))
 
   t)
+
+(defun bfepm-package--download-and-install-git (package _package-info)
+  "Download and install git PACKAGE using PACKAGE-INFO."
+  (let* ((package-name (bfepm-package-name package))
+         (config (bfepm-core-get-config))
+         (sources (if config (bfepm-config-sources config) (bfepm-package--get-default-sources)))
+         (git-source (cl-find-if (lambda (src)
+                                   (and (string= (bfepm-package--get-source-type (cdr src)) "git")
+                                        (bfepm-package--find-in-git package-name (cdr src))))
+                                 sources))
+         (source-config (cdr git-source))
+         (url (bfepm-package--get-source-url source-config))
+         (ref (or (plist-get source-config :ref) 
+                  (bfepm-package-version package)
+                  "latest"))
+         (shallow (plist-get source-config :shallow))
+         (install-dir (expand-file-name package-name (bfepm-core-get-packages-directory))))
+
+    (unless url
+      (bfepm-utils-error "No git URL found for package %s" package-name))
+
+    (bfepm-utils-message "Installing git package %s from %s" package-name url)
+
+    ;; Remove existing installation if it exists
+    (when (file-directory-p install-dir)
+      (delete-directory install-dir t))
+
+    ;; Clone repository
+    (condition-case err
+        (progn
+          (bfepm-utils-git-clone url install-dir 
+                                 (unless (string= ref "latest") ref)
+                                 shallow)
+          
+          ;; Determine actual version from git
+          (let ((actual-version (bfepm-package--get-git-version install-dir ref)))
+            ;; Save version information
+            (bfepm-package--save-version-info package-name actual-version)
+            
+            ;; Verify installation
+            (bfepm-package--verify-installation package-name install-dir)
+            
+            ;; Add to load-path
+            (add-to-list 'load-path install-dir)
+            
+            ;; Invalidate caches after successful installation
+            (bfepm-core--invalidate-cache package-name)
+            
+            (bfepm-utils-message "Successfully installed git package %s (version: %s)" 
+                                package-name actual-version)))
+      (error
+       ;; Rollback on failure
+       (when (file-directory-p install-dir)
+         (bfepm-utils-message "Rolling back failed git installation of %s" package-name)
+         (ignore-errors (delete-directory install-dir t)))
+       (bfepm-utils-error "Failed to install git package %s: %s" 
+                         package-name (error-message-string err)))))))
+
+(defun bfepm-package--get-git-version (repo-dir ref)
+  "Get version for git package at REPO-DIR with REF."
+  (cond
+   ;; If ref is "latest" or nil, try to get latest tag, then commit hash
+   ((or (not ref) (string= ref "latest"))
+    (or (bfepm-utils-git-get-latest-tag repo-dir)
+        (bfepm-utils-git-get-commit-hash repo-dir)
+        "unknown"))
+   ;; If ref looks like a commit hash, return it
+   ((string-match-p "^[a-f0-9]\\{7,40\\}$" ref)
+    (or (bfepm-utils-git-get-commit-hash repo-dir ref) ref))
+   ;; For tags or branches, return the ref itself
+   (t ref)))
 
 (provide 'bfepm-package)
 
