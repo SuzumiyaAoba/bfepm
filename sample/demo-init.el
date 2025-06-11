@@ -43,19 +43,46 @@
       (message "[BFEPM Demo] Note: Using temporary directory for demo (will be cleaned up on exit)")
       
       ;; Load BFEPM package module explicitly for demo
-      (require 'bfepm-package)
-      (message "[BFEPM Demo] ✅ bfepm-package loaded")
+      (condition-case err
+          (progn
+            (require 'bfepm-package)
+            (message "[BFEPM Demo] ✅ bfepm-package loaded via require"))
+        (error 
+         (message "[BFEPM Demo] ❌ Failed to require bfepm-package: %s" err)
+         (message "[BFEPM Demo] Trying direct load...")
+         (condition-case load-err
+             (progn
+               (load (expand-file-name "lisp/bfepm-package.el"))
+               (message "[BFEPM Demo] ✅ bfepm-package loaded via direct load"))
+           (error 
+            (message "[BFEPM Demo] ❌ Failed to load bfepm-package.el: %s" load-err)))))
       
       ;; Debug: Check if critical functions are available
+      (message "[BFEPM Demo] 🔍 Checking function availability...")
+      (message "[BFEPM Demo] Features loaded: %s" features)
+      (message "[BFEPM Demo] bfepm-package feature: %s" (featurep 'bfepm-package))
+      (message "[BFEPM Demo] bfepm--package-available: %s" (if (boundp 'bfepm--package-available) bfepm--package-available "unbound"))
+      
       (if (fboundp 'bfepm-package--find-package)
           (message "[BFEPM Demo] ✅ bfepm-package--find-package function available")
         (progn
           (message "[BFEPM Demo] ❌ bfepm-package--find-package function NOT available")
+          (message "[BFEPM Demo] Available bfepm-package functions: %s" 
+                   (condition-case err
+                       (let ((symbols (all-completions "bfepm-package" obarray)))
+                         (cl-remove-if-not (lambda (sym-name) 
+                                            (let ((sym (intern sym-name)))
+                                              (and (fboundp sym) (string-prefix-p "bfepm-package" sym-name))))
+                                          symbols))
+                     (error (format "Error listing functions: %s" err))))
           (message "[BFEPM Demo] Attempting to load bfepm-package.el directly...")
-          (load (expand-file-name "lisp/bfepm-package.el"))
-          (if (fboundp 'bfepm-package--find-package)
-              (message "[BFEPM Demo] ✅ bfepm-package--find-package function now available after direct load")
-            (message "[BFEPM Demo] ❌ bfepm-package--find-package function STILL not available"))))
+          (condition-case err
+              (progn
+                (load (expand-file-name "lisp/bfepm-package.el"))
+                (if (fboundp 'bfepm-package--find-package)
+                    (message "[BFEPM Demo] ✅ bfepm-package--find-package function now available after direct load")
+                  (message "[BFEPM Demo] ❌ bfepm-package--find-package function STILL not available")))
+            (error (message "[BFEPM Demo] ❌ Error loading bfepm-package.el: %s" err)))))
       
       (if (fboundp 'bfepm-package-install)
           (message "[BFEPM Demo] ✅ bfepm-package-install function available")
@@ -317,21 +344,46 @@
           (message "[BFEPM Demo] Attempting real installation of %s with version %s..." package-name version)
           (condition-case err
               (progn
-                ;; For git packages (version starts with "git:"), install just the package name
-                ;; BFEPM will use the configuration from bfepm.toml
-                (if (or (string= version "latest") (string-prefix-p "git:" version))
-                    (bfepm-install package-name)
-                  (bfepm-install (list package-name version)))
-                (message "[BFEPM Demo] ✅ %s package installation completed" (capitalize package-name)))
+                ;; Check if BFEPM package installation is available and functions exist
+                (if (and (fboundp 'bfepm-install) 
+                         (fboundp 'bfepm-package-install)
+                         (fboundp 'bfepm-package--find-package)
+                         (boundp 'bfepm--package-available) 
+                         bfepm--package-available)
+                    (progn
+                      (message "[BFEPM Demo] ✅ All required functions available, attempting real installation...")
+                      ;; For git packages (version starts with "git:"), install just the package name
+                      ;; BFEPM will use the configuration from bfepm.toml
+                      (if (or (string= version "latest") (string-prefix-p "git:" version))
+                          (bfepm-install package-name)
+                        (bfepm-install (list package-name version)))
+                      (message "[BFEPM Demo] ✅ %s package installation completed" (capitalize package-name)))
+                  (progn
+                    (message "[BFEPM Demo] ❌ Some required functions not available, using simulation instead")
+                    (message "[BFEPM Demo] Function status: bfepm-install=%s, bfepm-package-install=%s, bfepm-package--find-package=%s" 
+                             (fboundp 'bfepm-install) 
+                             (fboundp 'bfepm-package-install)
+                             (fboundp 'bfepm-package--find-package))
+                    (bfepm-demo-simulate-installation package-name version))))
             (error 
-             (message "[BFEPM Demo] ❌ Installation of %s failed: %s" package-name (error-message-string err)))))
+             (message "[BFEPM Demo] ❌ Installation of %s failed: %s" package-name (error-message-string err))
+             (message "[BFEPM Demo] Falling back to simulation...")
+             (bfepm-demo-simulate-installation package-name version))))
       (bfepm-demo-simulate-installation package-name version))))
 
 (defun bfepm-demo-simulate-installation (package-name &optional version)
   "Simulate installation of PACKAGE-NAME with optional VERSION for demo purposes."
   (let ((mock-version (or version (bfepm-demo-get-package-version package-name))))
     (message "[BFEPM Demo] Simulating installation of %s (%s)..." package-name mock-version)
-    (message "[BFEPM Demo] 📦 Finding %s package in MELPA..." package-name)
+    (if (string-prefix-p "git:" mock-version)
+        (progn
+          (message "[BFEPM Demo] 📦 Simulating git package installation...")
+          (let ((git-url (substring mock-version 4))) ; Remove "git:" prefix
+            (message "[BFEPM Demo] 🔗 Cloning repository: %s" git-url)
+            (sleep-for 0.5)
+            (message "[BFEPM Demo] 📥 Checking out specified branch/tag...")
+            (sleep-for 0.5)))
+      (message "[BFEPM Demo] 📦 Finding %s package in MELPA..." package-name))
     (sleep-for 0.5)
     (let ((download-version (if (string= mock-version "latest") "20250426.1319" 
                              (replace-regexp-in-string "^[~^]" "" mock-version))))
