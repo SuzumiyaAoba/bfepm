@@ -132,11 +132,18 @@
            ((and in-packages-section
                  (not (string-prefix-p "#" line))
                  (not (string= line ""))
-                 (not (string-prefix-p "[packages." line))  ; Skip config subsections
-                 (string-match "^\\([a-zA-Z0-9_-]+\\)\\s-*=\\s-*\"\\([^\"]+\\)\"" line))
-            (let ((pkg-name (match-string 1 line))
-                  (version (match-string 2 line)))
-              (push (cons pkg-name version) packages)))))
+                 (not (string-prefix-p "[packages." line)))  ; Skip config subsections
+            (cond
+             ;; Handle git packages: package = { git = "url", ... }
+             ((string-match "^\\([a-zA-Z0-9_-]+\\)\\s-*=\\s-*{.*git\\s-*=\\s-*\"\\([^\"]+\\)\".*}" line)
+              (let ((pkg-name (match-string 1 line))
+                    (git-url (match-string 2 line)))
+                (push (cons pkg-name (format "git:%s" git-url)) packages)))
+             ;; Handle regular packages: package = "version"
+             ((string-match "^\\([a-zA-Z0-9_-]+\\)\\s-*=\\s-*\"\\([^\"]+\\)\"" line)
+              (let ((pkg-name (match-string 1 line))
+                    (version (match-string 2 line)))
+                (push (cons pkg-name version) packages)))))))
         (forward-line 1))
       (reverse packages))))
 
