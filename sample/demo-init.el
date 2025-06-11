@@ -69,7 +69,34 @@
       (condition-case init-err
           (progn
             (bfepm-init)
-            (message "[BFEPM Demo] ✅ BFEPM initialized successfully"))
+            (message "[BFEPM Demo] ✅ BFEPM initialized successfully")
+            
+            ;; For demo: manually add git packages to config if TOML loading failed
+            (when (and (not (featurep 'bfepm-config)) (featurep 'bfepm-config-minimal))
+              (message "[BFEPM Demo] Adding git packages manually for demo...")
+              (let ((config (bfepm-core-get-config)))
+                (when config
+                  ;; Add git packages from sample/bfepm.toml manually
+                  (let ((git-packages 
+                         (list
+                          (make-bfepm-package :name "straight-el" 
+                                             :version "develop"
+                                             :source (list :url "https://github.com/radian-software/straight.el.git" 
+                                                          :type "git" :ref "develop")
+                                             :status 'required)
+                          (make-bfepm-package :name "emacs-async" 
+                                             :version "v1.9.8"
+                                             :source (list :url "https://github.com/jwiegley/emacs-async.git" 
+                                                          :type "git" :ref "v1.9.8")
+                                             :status 'required)
+                          (make-bfepm-package :name "doom-modeline" 
+                                             :version "4.3.0"
+                                             :source (list :url "https://github.com/seagle0128/doom-modeline.git" 
+                                                          :type "git" :ref "4.3.0")
+                                             :status 'required))))
+                    (setf (bfepm-config-packages config) 
+                          (append (bfepm-config-packages config) git-packages))
+                    (message "[BFEPM Demo] ✅ Git packages added to configuration")))))
         (error 
          (message "[BFEPM Demo] ⚠️  BFEPM initialization had issues: %s" (error-message-string init-err))
          (message "[BFEPM Demo] Demo will continue with basic functionality"))))
@@ -103,34 +130,57 @@
     ("smartparens" "Automatic insertion, wrapping and paredit-like navigation")
     ("expand-region" "Increase selected region by semantic units")
     ("multiple-cursors" "Multiple cursors for Emacs")
-    ("ace-window" "Quickly switch windows"))
+    ("ace-window" "Quickly switch windows")
+    ("straight-el" "Package manager with reproducible build and branch management")
+    ("emacs-async" "Asynchronous processing in Emacs")
+    ("doom-modeline" "Fancy and fast mode-line inspired by minimalism design"))
   "Package descriptions for demo purposes.")
 
 (defvar bfepm-demo-packages nil
   "List of packages loaded from sample/bfepm.toml for demo purposes.")
 
 (defun bfepm-demo-load-packages-from-toml ()
-  "Load package list from sample/bfepm.toml file."
+  "Load package list from sample/bfepm.toml file or BFEPM configuration."
   (condition-case err
-      (let ((config-file (expand-file-name "sample/bfepm.toml")))
-        (if (file-exists-p config-file)
-            (let ((packages-with-versions (bfepm-demo-parse-toml-packages config-file)))
+      (let ((config (bfepm-core-get-config)))
+        (if (and config (bfepm-config-packages config))
+            ;; Load from BFEPM configuration (includes git packages)
+            (progn
               (setq bfepm-demo-packages 
-                    (mapcar (lambda (pkg-info)
-                              (let ((pkg-name (car pkg-info))
-                                    (version (cdr pkg-info)))
+                    (mapcar (lambda (pkg)
+                              (let* ((pkg-name (bfepm-package-name pkg))
+                                     (version (bfepm-package-version pkg))
+                                     (source (bfepm-package-source pkg))
+                                     (version-display (if (and source (plist-get source :url))
+                                                         (format "git:%s" (plist-get source :url))
+                                                       version)))
                                 (list pkg-name 
                                       (format "%s (version: %s)" 
                                               (or (cadr (assoc pkg-name bfepm-demo-package-descriptions))
-                                                  "Package from sample/bfepm.toml")
-                                              version))))
-                            packages-with-versions))
-              (message "[BFEPM Demo] Loaded %d packages from sample/bfepm.toml" (length packages-with-versions)))
-          (progn
-            (message "[BFEPM Demo] sample/bfepm.toml not found, using fallback list")
-            (bfepm-demo-use-fallback-packages))))
+                                                  "Package from configuration")
+                                              version-display))))
+                            (bfepm-config-packages config)))
+              (message "[BFEPM Demo] Loaded %d packages from BFEPM configuration" (length (bfepm-config-packages config))))
+          ;; Fallback to TOML parsing if available
+          (let ((config-file (expand-file-name "sample/bfepm.toml")))
+            (if (file-exists-p config-file)
+                (let ((packages-with-versions (bfepm-demo-parse-toml-packages config-file)))
+                  (setq bfepm-demo-packages 
+                        (mapcar (lambda (pkg-info)
+                                  (let ((pkg-name (car pkg-info))
+                                        (version (cdr pkg-info)))
+                                    (list pkg-name 
+                                          (format "%s (version: %s)" 
+                                                  (or (cadr (assoc pkg-name bfepm-demo-package-descriptions))
+                                                      "Package from sample/bfepm.toml")
+                                                  version))))
+                                packages-with-versions))
+                  (message "[BFEPM Demo] Loaded %d packages from sample/bfepm.toml" (length packages-with-versions)))
+              (progn
+                (message "[BFEPM Demo] No configuration available, using fallback list")
+                (bfepm-demo-use-fallback-packages))))))
     (error 
-     (message "[BFEPM Demo] Error loading sample/bfepm.toml: %s" (error-message-string err))
+     (message "[BFEPM Demo] Error loading packages: %s" (error-message-string err))
      (bfepm-demo-use-fallback-packages))))
 
 (defun bfepm-demo-use-fallback-packages ()
