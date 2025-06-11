@@ -20,6 +20,20 @@
       (require 'bfepm-core)
       (message "[BFEPM Demo] ✅ bfepm-core loaded")
       
+      ;; Try to load bfepm-config, fall back to minimal if toml.el not available
+      (condition-case config-err
+          (progn
+            (require 'bfepm-config)
+            (message "[BFEPM Demo] ✅ bfepm-config loaded (full TOML support)"))
+        (error 
+         (message "[BFEPM Demo] ⚠️  bfepm-config failed, trying minimal: %s" (error-message-string config-err))
+         (condition-case minimal-err
+             (progn
+               (require 'bfepm-config-minimal)
+               (message "[BFEPM Demo] ✅ bfepm-config-minimal loaded (basic support)"))
+           (error 
+            (message "[BFEPM Demo] ❌ Both config modules failed: %s" (error-message-string minimal-err))))))
+      
       ;; Set up BFEPM variables for demo (using temporary directory)
       (setq bfepm-demo-temp-dir (make-temp-file "bfepm-demo-" t))
       (setq bfepm-config-file (expand-file-name "sample/bfepm.toml"))
@@ -31,6 +45,21 @@
       ;; Load BFEPM package module explicitly for demo
       (require 'bfepm-package)
       (message "[BFEPM Demo] ✅ bfepm-package loaded")
+      
+      ;; Debug: Check if critical functions are available
+      (if (fboundp 'bfepm-package--find-package)
+          (message "[BFEPM Demo] ✅ bfepm-package--find-package function available")
+        (progn
+          (message "[BFEPM Demo] ❌ bfepm-package--find-package function NOT available")
+          (message "[BFEPM Demo] Attempting to load bfepm-package.el directly...")
+          (load (expand-file-name "lisp/bfepm-package.el"))
+          (if (fboundp 'bfepm-package--find-package)
+              (message "[BFEPM Demo] ✅ bfepm-package--find-package function now available after direct load")
+            (message "[BFEPM Demo] ❌ bfepm-package--find-package function STILL not available"))))
+      
+      (if (fboundp 'bfepm-package-install)
+          (message "[BFEPM Demo] ✅ bfepm-package-install function available")
+        (message "[BFEPM Demo] ❌ bfepm-package-install function NOT available"))
       
       ;; Load main BFEPM module (which handles optional dependencies)
       (require 'bfepm)
