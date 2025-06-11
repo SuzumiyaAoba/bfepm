@@ -28,6 +28,10 @@
       (message "[BFEPM Demo] Demo BFEPM directory set to: %s" bfepm-directory)
       (message "[BFEPM Demo] Note: Using temporary directory for demo (will be cleaned up on exit)")
       
+      ;; Load BFEPM package module explicitly for demo
+      (require 'bfepm-package)
+      (message "[BFEPM Demo] ✅ bfepm-package loaded")
+      
       ;; Load main BFEPM module (which handles optional dependencies)
       (require 'bfepm)
       (message "[BFEPM Demo] ✅ BFEPM main module loaded")
@@ -234,7 +238,9 @@
           (message "[BFEPM Demo] Attempting real installation of %s with version %s..." package-name version)
           (condition-case err
               (progn
-                (if (string= version "latest")
+                ;; For git packages (version starts with "git:"), install just the package name
+                ;; BFEPM will use the configuration from bfepm.toml
+                (if (or (string= version "latest") (string-prefix-p "git:" version))
                     (bfepm-install package-name)
                   (bfepm-install (list package-name version)))
                 (message "[BFEPM Demo] ✅ %s package installation completed" (capitalize package-name)))
