@@ -96,7 +96,7 @@
                                              :status 'required))))
                     (setf (bfepm-config-packages config) 
                           (append (bfepm-config-packages config) git-packages))
-                    (message "[BFEPM Demo] ✅ Git packages added to configuration")))))
+                    (message "[BFEPM Demo] ✅ Git packages added to configuration"))))))
         (error 
          (message "[BFEPM Demo] ⚠️  BFEPM initialization had issues: %s" (error-message-string init-err))
          (message "[BFEPM Demo] Demo will continue with basic functionality"))))
