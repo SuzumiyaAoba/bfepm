@@ -98,8 +98,12 @@
             (bfepm-init)
             (message "[BFEPM Demo] ✅ BFEPM initialized successfully")
             
-            ;; For demo: Add git packages to demo list regardless of config loading status
+            ;; For demo: Initialize and add git packages to demo list
             ;; This ensures git packages are always available in demo for demonstration
+            (message "[BFEPM Demo] Initializing demo package list...")
+            ;; Ensure bfepm-demo-packages is initialized
+            (unless (boundp 'bfepm-demo-packages)
+              (setq bfepm-demo-packages nil))
             (message "[BFEPM Demo] Adding git packages to demo package list...")
             (let ((git-packages-for-demo
                    '(("straight-el" "Package manager with reproducible build and branch management (git:https://github.com/radian-software/straight.el.git)")
@@ -138,13 +142,25 @@
                                        :sources (bfepm-config-sources config))))
                         (message "[BFEPM Demo] ✅ Git packages also added to configuration")))))
               (error
-               (message "[BFEPM Demo] ⚠️  Could not add git packages to config: %s" (error-message-string config-err))))))
+               (message "[BFEPM Demo] ⚠️  Could not add git packages to config: %s" (error-message-string config-err)))))
+            
+            ;; Load remaining packages from TOML after git packages are added
+            (bfepm-demo-load-packages-from-toml))
         (error 
          (message "[BFEPM Demo] ⚠️  BFEPM initialization had issues: %s" (error-message-string init-err))
-         (message "[BFEPM Demo] Demo will continue with basic functionality"))))
+         (message "[BFEPM Demo] Demo will continue with basic functionality")
+         ;; Ensure variable is initialized even on error
+         (unless (boundp 'bfepm-demo-packages)
+           (setq bfepm-demo-packages nil))
+         ;; Load fallback packages even if initialization fails
+         (bfepm-demo-use-fallback-packages)))
   (error 
    (message "[BFEPM Demo] ❌ Failed to load BFEPM: %s" (error-message-string err))
-   (message "[BFEPM Demo] This demo will have limited functionality")))
+   (message "[BFEPM Demo] This demo will have limited functionality")
+   ;; Ensure variable is initialized even on complete failure
+   (unless (boundp 'bfepm-demo-packages)
+     (setq bfepm-demo-packages nil))
+   (bfepm-demo-use-fallback-packages))))
 
 ;; Package descriptions for demo
 (defvar bfepm-demo-package-descriptions
@@ -306,8 +322,7 @@
               "latest"))))
     (error "latest")))
 
-;; Load packages from sample/bfepm.toml at startup
-(bfepm-demo-load-packages-from-toml)
+;; Note: Package loading is now handled during BFEPM initialization
 
 ;; Demo functions for interactive testing
 (defun bfepm-demo-install-package ()
