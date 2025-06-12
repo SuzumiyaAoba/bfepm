@@ -11,7 +11,7 @@
 (add-to-list 'load-path ".")
 
 ;; Load BFEPM with error handling
-(condition-case err
+(condition-case outer-err
     (progn
       (message "[BFEPM Demo] Loading BFEPM modules...")
       (require 'bfepm-utils)
@@ -43,12 +43,12 @@
       (message "[BFEPM Demo] Note: Using temporary directory for demo (will be cleaned up on exit)")
       
       ;; Load BFEPM package module explicitly for demo
-      (condition-case err
+      (condition-case package-err
           (progn
             (require 'bfepm-package)
             (message "[BFEPM Demo] ✅ bfepm-package loaded via require"))
         (error 
-         (message "[BFEPM Demo] ❌ Failed to require bfepm-package: %s" err)
+         (message "[BFEPM Demo] ❌ Failed to require bfepm-package: %s" package-err)
          (message "[BFEPM Demo] Trying direct load...")
          (condition-case load-err
              (progn
@@ -68,21 +68,21 @@
         (progn
           (message "[BFEPM Demo] ❌ bfepm-package--find-package function NOT available")
           (message "[BFEPM Demo] Available bfepm-package functions: %s" 
-                   (condition-case err
+                   (condition-case list-err
                        (let ((symbols (all-completions "bfepm-package" obarray)))
                          (cl-remove-if-not (lambda (sym-name) 
                                             (let ((sym (intern sym-name)))
                                               (and (fboundp sym) (string-prefix-p "bfepm-package" sym-name))))
                                           symbols))
-                     (error (format "Error listing functions: %s" err))))
+                     (error (format "Error listing functions: %s" list-err))))
           (message "[BFEPM Demo] Attempting to load bfepm-package.el directly...")
-          (condition-case err
+          (condition-case direct-load-err
               (progn
                 (load (expand-file-name "lisp/bfepm-package.el"))
                 (if (fboundp 'bfepm-package--find-package)
                     (message "[BFEPM Demo] ✅ bfepm-package--find-package function now available after direct load")
                   (message "[BFEPM Demo] ❌ bfepm-package--find-package function STILL not available")))
-            (error (message "[BFEPM Demo] ❌ Error loading bfepm-package.el: %s" err)))))
+            (error (message "[BFEPM Demo] ❌ Error loading bfepm-package.el: %s" direct-load-err)))))
       
       (if (fboundp 'bfepm-package-install)
           (message "[BFEPM Demo] ✅ bfepm-package-install function available")
@@ -155,7 +155,7 @@
          ;; Load fallback packages even if initialization fails
          (bfepm-demo-use-fallback-packages)))
   (error 
-   (message "[BFEPM Demo] ❌ Failed to load BFEPM: %s" (error-message-string err))
+   (message "[BFEPM Demo] ❌ Failed to load BFEPM: %s" (error-message-string outer-err))
    (message "[BFEPM Demo] This demo will have limited functionality")
    ;; Ensure variable is initialized even on complete failure
    (unless (boundp 'bfepm-demo-packages)
