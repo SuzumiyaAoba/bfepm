@@ -7,6 +7,20 @@
 
 ;;; Code:
 
+;; Declare variable used in error handling
+(defvar bfepm-demo-packages nil
+  "List of packages loaded from sample/bfepm.toml for demo purposes.")
+
+;; Forward declaration of helper function used in error handling
+(defun bfepm-demo-use-fallback-packages ()
+  "Use fallback package list when sample/bfepm.toml is not available."
+  (setq bfepm-demo-packages
+        '(("company" "Modular text completion framework")
+          ("vertico" "Vertical interactive completion")
+          ("consult" "Consulting completing-read")
+          ("marginalia" "Enrich existing commands with completion annotations")
+          ("which-key" "Display available keybindings in popup"))))
+
 ;; Add BFEPM to load-path (adjust path as needed)
 (add-to-list 'load-path ".")
 
@@ -93,7 +107,7 @@
       (message "[BFEPM Demo] ✅ BFEPM main module loaded")
       
       ;; Initialize BFEPM
-      (condition-case init-err
+      (condition-case bfepm-init-err
           (progn
             (bfepm-init)
             (message "[BFEPM Demo] ✅ BFEPM initialized successfully")
@@ -147,7 +161,7 @@
             ;; Load remaining packages from TOML after git packages are added
             (bfepm-demo-load-packages-from-toml))
         (error 
-         (message "[BFEPM Demo] ⚠️  BFEPM initialization had issues: %s" (error-message-string init-err))
+         (message "[BFEPM Demo] ⚠️  BFEPM initialization had issues: %s" (error-message-string bfepm-init-err))
          (message "[BFEPM Demo] Demo will continue with basic functionality")
          ;; Ensure variable is initialized even on error
          (unless (boundp 'bfepm-demo-packages)
@@ -160,7 +174,7 @@
    ;; Ensure variable is initialized even on complete failure
    (unless (boundp 'bfepm-demo-packages)
      (setq bfepm-demo-packages nil))
-   (bfepm-demo-use-fallback-packages))))
+   (bfepm-demo-use-fallback-packages)))
 
 ;; Package descriptions for demo
 (defvar bfepm-demo-package-descriptions
@@ -194,12 +208,9 @@
     ("doom-modeline" "Fancy and fast mode-line inspired by minimalism design"))
   "Package descriptions for demo purposes.")
 
-(defvar bfepm-demo-packages nil
-  "List of packages loaded from sample/bfepm.toml for demo purposes.")
-
 (defun bfepm-demo-load-packages-from-toml ()
   "Load package list from sample/bfepm.toml file or BFEPM configuration."
-  (condition-case err
+  (condition-case load-toml-err
       (let ((config (bfepm-core-get-config)))
         (if (and config (bfepm-config-packages config))
             ;; Load from BFEPM configuration (includes git packages)
@@ -238,17 +249,8 @@
                 (message "[BFEPM Demo] No configuration available, using fallback list")
                 (bfepm-demo-use-fallback-packages))))))
     (error 
-     (message "[BFEPM Demo] Error loading packages: %s" (error-message-string err))
+     (message "[BFEPM Demo] Error loading packages: %s" (error-message-string load-toml-err))
      (bfepm-demo-use-fallback-packages))))
-
-(defun bfepm-demo-use-fallback-packages ()
-  "Use fallback package list when sample/bfepm.toml is not available."
-  (setq bfepm-demo-packages
-        '(("company" "Modular text completion framework")
-          ("vertico" "Vertical interactive completion")
-          ("consult" "Consulting completing-read")
-          ("marginalia" "Enrich existing commands with completion annotations")
-          ("which-key" "Display available keybindings in popup"))))
 
 (defun bfepm-demo-parse-toml-packages (file)
   "Simple TOML parser to extract package names and versions from FILE."
@@ -303,7 +305,7 @@
 
 (defun bfepm-demo-get-package-version (package-name)
   "Get version specification for PACKAGE-NAME from demo packages or config."
-  (condition-case err
+  (condition-case version-err
       (let ((package-info (assoc package-name bfepm-demo-packages)))
         (if package-info
             ;; Extract version from package description  
@@ -382,7 +384,7 @@
     (if (y-or-n-p (format "[BFEPM Demo] Attempt real installation of %s (%s)? This requires internet access. " package-name version))
         (progn
           (message "[BFEPM Demo] Attempting real installation of %s with version %s..." package-name version)
-          (condition-case err
+          (condition-case install-wrapper-err
               (progn
                 ;; Demo-specific safe installation approach
                 ;; Always use simulation for git packages to avoid function dependency issues
@@ -406,7 +408,7 @@
                      (message "[BFEPM Demo] ❌ Installation failed (%s), falling back to simulation" (error-message-string install-err))
                      (bfepm-demo-simulate-installation package-name version)))))
             (error 
-             (message "[BFEPM Demo] ❌ Installation of %s failed: %s" package-name (error-message-string err))
+             (message "[BFEPM Demo] ❌ Installation of %s failed: %s" package-name (error-message-string install-wrapper-err))
              (message "[BFEPM Demo] Falling back to simulation...")
              (bfepm-demo-simulate-installation package-name version))))
       (bfepm-demo-simulate-installation package-name version))))
@@ -459,12 +461,12 @@
   (interactive)
   (when (and (boundp 'bfepm-demo-temp-dir) 
              (file-directory-p bfepm-demo-temp-dir))
-    (condition-case err
+    (condition-case cleanup-err
         (progn
           (delete-directory bfepm-demo-temp-dir t)
           (message "[BFEPM Demo] ✅ Temporary directory cleaned up: %s" bfepm-demo-temp-dir))
       (error 
-       (message "[BFEPM Demo] ⚠️  Failed to cleanup temp directory: %s" (error-message-string err))))))
+       (message "[BFEPM Demo] ⚠️  Failed to cleanup temp directory: %s" (error-message-string cleanup-err))))))
 
 ;; Set up automatic cleanup on exit
 (when (boundp 'bfepm-demo-temp-dir)
@@ -520,7 +522,7 @@
   "Show detailed package information for company."
   (interactive)
   (message "[BFEPM Demo] Fetching package information for 'company'...")
-  (condition-case err
+  (condition-case show-info-err
       (if (and (boundp 'bfepm--package-available) bfepm--package-available)
           (let* ((sources (bfepm-package--get-default-sources))
                  (melpa-source (cdr (assoc "melpa" sources)))
@@ -541,7 +543,7 @@
               (message "[BFEPM Demo] ❌ Package 'company' not found in MELPA")))
         (message "[BFEPM Demo] ❌ Package functionality not available"))
     (error 
-     (message "[BFEPM Demo] ❌ Error fetching package info: %s" (error-message-string err)))))
+     (message "[BFEPM Demo] ❌ Error fetching package info: %s" (error-message-string show-info-err)))))
 
 (defun bfepm-demo-install-with-version ()
   "Demo function to install package with version specification."
@@ -570,7 +572,7 @@
           (message "[BFEPM Demo] Testing generic version patterns:")
           (dolist (version test-versions)
             (message "[BFEPM Demo] Testing version specification: %s" version)
-            (condition-case err
+            (condition-case version-test-err
                 (progn
                   (let ((package-spec (list "company" version)))
                     (message "[BFEPM Demo] Would install: %S" package-spec)
@@ -587,7 +589,7 @@
                               (message "[BFEPM Demo] ✅ Version %s is compatible" version)
                             (message "[BFEPM Demo] ❌ Version %s not compatible with %s" version available-version)))))))
               (error 
-               (message "[BFEPM Demo] ❌ Error testing version %s: %s" version (error-message-string err))))
+               (message "[BFEPM Demo] ❌ Error testing version %s: %s" version (error-message-string version-test-err))))
             (message ""))))
     (message "[BFEPM Demo] Version specification demo skipped.")))
 
@@ -598,7 +600,7 @@
   (let ((test-versions '("latest" "20250426.1319" "20240101.1200" "^20250426")))
     (dolist (version test-versions)
       (message "[BFEPM Demo] Testing version: %s" version)
-      (condition-case err
+      (condition-case batch-version-err
           (let* ((sources (bfepm-package--get-default-sources))
                  (melpa-source (cdr (assoc "melpa" sources)))
                  (package-info (bfepm-package--find-in-elpa "company" melpa-source)))
@@ -609,14 +611,14 @@
                     (message "[BFEPM Demo] ✅ %s: Compatible" version)
                   (message "[BFEPM Demo] ❌ %s: Not compatible with %s" version available-version)))))
         (error 
-         (message "[BFEPM Demo] ❌ Error testing %s: %s" version (error-message-string err)))))
+         (message "[BFEPM Demo] ❌ Error testing %s: %s" version (error-message-string batch-version-err)))))
   (message "[BFEPM Demo] Version specification test completed.")))
 
 (defun bfepm-demo-show-config ()
   "Demo function to show current EPM configuration."
   (interactive)
   (message "[BFEPM Demo] Showing EPM configuration...")
-  (condition-case err
+  (condition-case show-config-err
       (progn
         (if (boundp 'bfepm-config-file)
             (progn
@@ -632,12 +634,12 @@
             (message "[BFEPM Demo] ✅ BFEPM module is loaded")
           (message "[BFEPM Demo] ❌ BFEPM module not loaded")))
     (error 
-     (message "[BFEPM Demo] ❌ Error checking configuration: %s" (error-message-string err)))))
+     (message "[BFEPM Demo] ❌ Error checking configuration: %s" (error-message-string show-config-err)))))
 
 (defun bfepm-demo-list-packages ()
   "Demo function to list installed packages."
   (interactive)
-  (condition-case err
+  (condition-case list-packages-err
       (if (and (boundp 'bfepm--package-available) bfepm--package-available)
           (progn
             (message "[BFEPM Demo] Listing installed packages...")
@@ -660,13 +662,13 @@
                   (message "[BFEPM Demo] Packages directory not yet created")))
             (message "[BFEPM Demo] ❌ bfepm-directory variable not set"))))
     (error 
-     (message "[BFEPM Demo] ❌ Error listing packages: %s" (error-message-string err)))))
+     (message "[BFEPM Demo] ❌ Error listing packages: %s" (error-message-string list-packages-err)))))
 
 (defun bfepm-demo-test-version ()
   "Demo function to test version comparison."
   (interactive)
   (message "[BFEPM Demo] Testing version comparison...")
-  (condition-case err
+  (condition-case test-version-err
       (progn
         (if (featurep 'bfepm-utils)
             (progn
@@ -675,7 +677,7 @@
               (message "[BFEPM Demo] 1.0.0 vs 1.0.1: %d" (bfepm-utils-version-compare "1.0.0" "1.0.1")))
           (message "[BFEPM Demo] ❌ bfepm-utils module not loaded")))
     (error 
-     (message "[BFEPM Demo] ❌ Error testing version comparison: %s" (error-message-string err)))))
+     (message "[BFEPM Demo] ❌ Error testing version comparison: %s" (error-message-string test-version-err)))))
 
 (defun bfepm-ui-show ()
   "Open BFEPM UI showing available packages (demo version)."
