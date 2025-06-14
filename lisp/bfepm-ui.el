@@ -216,14 +216,54 @@
     
     (setq tabulated-list-entries (nreverse entries))))
 
-(defun bfepm-ui--get-package-description (_package-name)
+(defun bfepm-ui--get-package-description (package-name)
   "Get description for PACKAGE-NAME from its main file."
-  ;; For now, return nil to avoid the bfepm-ui-toggle-view issue
-  ;; TODO: Implement proper package description extraction
-  nil)
-
-
-
+  (let ((package-dir (expand-file-name package-name (bfepm-core-get-packages-directory)))
+        (main-file nil)
+        (description nil))
+    
+    (when (file-directory-p package-dir)
+      ;; Find the main package file (package-name.el)
+      (setq main-file (expand-file-name (concat package-name ".el") package-dir))
+      
+      ;; If main file doesn't exist, try to find any .el file
+      (unless (file-exists-p main-file)
+        (let ((el-files (directory-files package-dir t "\\.el$")))
+          (when el-files
+            (setq main-file (car el-files)))))
+      
+      ;; Extract description from the file
+      (when (and main-file (file-exists-p main-file))
+        (condition-case nil
+            (with-temp-buffer
+              (insert-file-contents main-file nil 0 4096) ; Read first 4KB for better coverage
+              (goto-char (point-min))
+              ;; Look for standard Emacs Lisp package header format (case-insensitive)
+              ;; Format: ;;; package-name.el --- Description here
+              (let ((case-fold-search t)) ; Enable case-insensitive search
+                (when (re-search-forward 
+                       (format "^;;;[[:space:]]*%s\\.el[[:space:]]*---[[:space:]]*\\(.+\\)$" 
+                               (regexp-quote package-name)) nil t)
+                  (setq description (match-string 1)))
+                ;; Alternative: look for generic ;;; filename.el --- description
+                (unless description
+                  (goto-char (point-min))
+                  (when (re-search-forward "^;;;[[:space:]]*[^[:space:]]+\\.el[[:space:]]*---[[:space:]]*\\(.+\\)$" nil t)
+                    (setq description (match-string 1))))
+                ;; Fallback: look for any comment line that might be a description
+                (unless description
+                  (goto-char (point-min))
+                  (when (re-search-forward "^;;[[:space:]]*\\([A-Z][^.]*\\.[[:space:]]*\\)$" nil t)
+                    (setq description (match-string 1)))))
+              ;; Clean up description
+              (when description
+                (setq description (bfepm-ui--string-trim description))
+                (when (string-match "^\\(.*?\\)[[:space:]]*-\\*-.*-\\*-[[:space:]]*$" description)
+                  (setq description (match-string 1 description)))
+                (setq description (bfepm-ui--string-trim description))))
+          (error nil))))
+    
+    description))
 
 (defun bfepm-ui-toggle-view ()
   "Toggle between installed and available packages view."
@@ -437,7 +477,7 @@
           
           (insert (format "Missing/Corrupted: %d\n" missing-count))
           (insert (format "Health Status: %s\n\n" 
-                         (if (= missing-count 0) "✓ Good" "⚠ Issues Found"))))
+                         (if (= missing-count 0) "* Good" "! Issues Found"))))
         
         ;; Quick actions guide
         (insert "=== Quick Actions ===\n")
