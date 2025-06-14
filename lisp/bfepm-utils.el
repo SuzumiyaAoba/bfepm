@@ -210,13 +210,27 @@ If SHALLOW is non-nil, perform a shallow clone."
         (bfepm-utils-error "Git checkout of %s failed with exit code %d" ref result)))))
 
 (defun bfepm-utils-git-get-latest-tag (repo-dir)
-  "Get the latest tag from git repository at REPO-DIR."
+  "Get the latest tag from git repository at REPO-DIR.
+If no tags are found locally (e.g., due to shallow clone), fetch tags first."
   (let ((default-directory repo-dir))
     (with-temp-buffer
       (let ((result (call-process "git" nil t nil "describe" "--tags" "--abbrev=0")))
         (if (= result 0)
             (string-trim (buffer-string))
-          nil)))))
+          ;; If tag discovery fails, try fetching tags and retry
+          (progn
+            (bfepm-utils-message "No tags found locally, fetching tags from remote...")
+            (let ((fetch-result (call-process "git" nil nil nil "fetch" "--tags")))
+              (if (= fetch-result 0)
+                  (progn
+                    (erase-buffer)
+                    (let ((retry-result (call-process "git" nil t nil "describe" "--tags" "--abbrev=0")))
+                      (if (= retry-result 0)
+                          (string-trim (buffer-string))
+                        nil)))
+                (progn
+                  (bfepm-utils-message "Failed to fetch tags from remote")
+                  nil))))))))))
 
 (defun bfepm-utils-git-get-commit-hash (repo-dir &optional ref)
   "Get commit hash for REF in git repository at REPO-DIR.
@@ -229,13 +243,30 @@ If REF is nil, gets current HEAD commit hash."
           nil)))))
 
 (defun bfepm-utils-git-list-tags (repo-dir)
-  "List all tags in git repository at REPO-DIR."
+  "List all tags in git repository at REPO-DIR.
+If no tags are found locally (e.g., due to shallow clone), fetch tags first."
   (let ((default-directory repo-dir))
     (with-temp-buffer
       (let ((result (call-process "git" nil t nil "tag" "-l")))
-        (if (= result 0)
+        (if (and (= result 0) (not (string-empty-p (string-trim (buffer-string)))))
             (split-string (string-trim (buffer-string)) "\n" t)
-          nil)))))
+          ;; If no tags found, try fetching tags and retry
+          (progn
+            (bfepm-utils-message "No tags found locally, fetching tags from remote...")
+            (let ((fetch-result (call-process "git" nil nil nil "fetch" "--tags")))
+              (if (= fetch-result 0)
+                  (progn
+                    (erase-buffer)
+                    (let ((retry-result (call-process "git" nil t nil "tag" "-l")))
+                      (if (= retry-result 0)
+                          (let ((tag-output (string-trim (buffer-string))))
+                            (if (not (string-empty-p tag-output))
+                                (split-string tag-output "\n" t)
+                              nil))
+                        nil)))
+                (progn
+                  (bfepm-utils-message "Failed to fetch tags from remote")
+                  nil))))))))))
 
 (provide 'bfepm-utils)
 

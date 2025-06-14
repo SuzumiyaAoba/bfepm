@@ -236,19 +236,25 @@
       (when (and main-file (file-exists-p main-file))
         (condition-case nil
             (with-temp-buffer
-              (insert-file-contents main-file nil 0 2000) ; Read first 2KB for efficiency
+              (insert-file-contents main-file nil 0 4096) ; Read first 4KB for better coverage
               (goto-char (point-min))
-              ;; Look for standard Emacs Lisp package header format
+              ;; Look for standard Emacs Lisp package header format (case-insensitive)
               ;; Format: ;;; package-name.el --- Description here
-              (when (re-search-forward 
-                     (format "^;;;[[:space:]]*%s\\.el[[:space:]]*---[[:space:]]*\\(.+\\)$" 
-                             (regexp-quote package-name)) nil t)
-                (setq description (match-string 1)))
-              ;; Alternative: look for generic ;;; filename.el --- description
-              (unless description
-                (goto-char (point-min))
-                (when (re-search-forward "^;;;[[:space:]]*[^[:space:]]+\\.el[[:space:]]*---[[:space:]]*\\(.+\\)$" nil t)
-                  (setq description (match-string 1))))
+              (let ((case-fold-search t)) ; Enable case-insensitive search
+                (when (re-search-forward 
+                       (format "^;;;[[:space:]]*%s\\.el[[:space:]]*---[[:space:]]*\\(.+\\)$" 
+                               (regexp-quote package-name)) nil t)
+                  (setq description (match-string 1)))
+                ;; Alternative: look for generic ;;; filename.el --- description
+                (unless description
+                  (goto-char (point-min))
+                  (when (re-search-forward "^;;;[[:space:]]*[^[:space:]]+\\.el[[:space:]]*---[[:space:]]*\\(.+\\)$" nil t)
+                    (setq description (match-string 1))))
+                ;; Fallback: look for any comment line that might be a description
+                (unless description
+                  (goto-char (point-min))
+                  (when (re-search-forward "^;;[[:space:]]*\\([A-Z][^.]*\\.[[:space:]]*\\)$" nil t)
+                    (setq description (match-string 1)))))
               ;; Clean up description
               (when description
                 (setq description (bfepm-ui--string-trim description))

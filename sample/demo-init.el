@@ -7,11 +7,43 @@
 
 ;;; Code:
 
-;; Declare variable used in error handling
+;; Declare variables used in error handling and demo
 (defvar bfepm-demo-packages nil
   "List of packages loaded from sample/bfepm.toml for demo purposes.")
 
-;; Forward declaration of helper function used in error handling
+;; Package descriptions for demo
+(defvar bfepm-demo-package-descriptions
+  '(("company" "Modular text completion framework")
+    ("vertico" "Vertical interactive completion")
+    ("consult" "Consulting completing-read")
+    ("marginalia" "Enrich existing commands with completion annotations")
+    ("embark" "Conveniently act on minibuffer completions")
+    ("orderless" "Completion style for matching regexps in any order")
+    ("magit" "A Git porcelain inside Emacs")
+    ("which-key" "Display available keybindings in popup")
+    ("doom-themes" "An opinionated pack of modern color-themes")
+    ("projectile" "Manage and navigate projects in Emacs easily")
+    ("lsp-mode" "Language Server Protocol client")
+    ("flycheck" "On-the-fly syntax checking")
+    ("yasnippet" "Yet another snippet extension")
+    ("helm" "Incremental completion and selection narrowing framework")
+    ("ivy" "Incremental completion and selection narrowing framework")
+    ("org" "Outline-based notes management and organizer")
+    ("use-package" "Declaration macro for simplifying your .emacs")
+    ("evil" "Extensible Vi layer for Emacs")
+    ("treemacs" "Tree style file explorer")
+    ("dashboard" "Startup screen extracted from Spacemacs")
+    ("rainbow-delimiters" "Highlight delimiters according to their depth")
+    ("smartparens" "Automatic insertion, wrapping and paredit-like navigation")
+    ("expand-region" "Increase selected region by semantic units")
+    ("multiple-cursors" "Multiple cursors for Emacs")
+    ("ace-window" "Quickly switch windows")
+    ("straight-el" "Package manager with reproducible build and branch management")
+    ("emacs-async" "Asynchronous processing in Emacs")
+    ("doom-modeline" "Fancy and fast mode-line inspired by minimalism design"))
+  "Package descriptions for demo purposes.")
+
+;; Forward declaration of helper functions used in error handling
 (defun bfepm-demo-use-fallback-packages ()
   "Use fallback package list when sample/bfepm.toml is not available."
   (setq bfepm-demo-packages
@@ -20,6 +52,122 @@
           ("consult" "Consulting completing-read")
           ("marginalia" "Enrich existing commands with completion annotations")
           ("which-key" "Display available keybindings in popup"))))
+
+(defun bfepm-demo-string-trim (string)
+  "Trim whitespace from STRING (compatibility function)."
+  (replace-regexp-in-string "\\`[ \t\n\r]+" "" 
+                            (replace-regexp-in-string "[ \t\n\r]+\\'" "" string)))
+
+(defun bfepm-demo-parse-toml-packages (file)
+  "Enhanced TOML parser to extract package names and versions from FILE."
+  (with-temp-buffer
+    (insert-file-contents file)
+    (goto-char (point-min))
+    (let ((packages '())
+          (in-packages-section nil))
+      (while (not (eobp))
+        (let ((line (bfepm-demo-string-trim (buffer-substring-no-properties 
+                                            (line-beginning-position) 
+                                            (line-end-position)))))
+          (cond
+           ;; Check for [packages] section
+           ((string= line "[packages]")
+            (setq in-packages-section t))
+           ;; Check for any other sections (including [packages.*.config])
+           ((and (string-prefix-p "[" line)
+                 (not (string= line "[packages]")))
+            (setq in-packages-section nil))
+           ;; Parse package lines in [packages] section
+           ((and in-packages-section
+                 (not (string-prefix-p "#" line))
+                 (not (string= line ""))
+                 (not (string-prefix-p "[packages." line)))  ; Skip config subsections
+            (cond
+             ;; Handle git packages with branch: package = { git = "url", branch = "name" }
+             ((string-match "^\\([a-zA-Z0-9_-]+\\)\\s-*=\\s-*{[^}]*\\<git\\s-*=\\s-*\"\\([^\"]+\\)\"[^}]*\\<branch\\s-*=\\s-*\"\\([^\"]+\\)\"[^}]*}" line)
+              (let ((pkg-name (match-string 1 line))
+                    (git-url (match-string 2 line))
+                    (branch (match-string 3 line)))
+                (push (cons pkg-name (format "git:%s@%s" git-url branch)) packages)))
+             ;; Handle git packages with tag: package = { git = "url", tag = "version" }
+             ((string-match "^\\([a-zA-Z0-9_-]+\\)\\s-*=\\s-*{[^}]*\\<git\\s-*=\\s-*\"\\([^\"]+\\)\"[^}]*\\<tag\\s-*=\\s-*\"\\([^\"]+\\)\"[^}]*}" line)
+              (let ((pkg-name (match-string 1 line))
+                    (git-url (match-string 2 line))
+                    (tag (match-string 3 line)))
+                (push (cons pkg-name (format "git:%s@%s" git-url tag)) packages)))
+             ;; Handle git packages with ref: package = { git = "url", ref = "commit" }
+             ((string-match "^\\([a-zA-Z0-9_-]+\\)\\s-*=\\s-*{[^}]*\\<git\\s-*=\\s-*\"\\([^\"]+\\)\"[^}]*\\<ref\\s-*=\\s-*\"\\([^\"]+\\)\"[^}]*}" line)
+              (let ((pkg-name (match-string 1 line))
+                    (git-url (match-string 2 line))
+                    (ref (match-string 3 line)))
+                (push (cons pkg-name (format "git:%s@%s" git-url ref)) packages)))
+             ;; Handle basic git packages: package = { git = "url" }
+             ((string-match "^\\([a-zA-Z0-9_-]+\\)\\s-*=\\s-*{[^}]*\\<git\\s-*=\\s-*\"\\([^\"]+\\)\"[^}]*}" line)
+              (let ((pkg-name (match-string 1 line))
+                    (git-url (match-string 2 line)))
+                (push (cons pkg-name (format "git:%s" git-url)) packages)))
+             ;; Handle regular packages: package = "version"
+             ((string-match "^\\([a-zA-Z0-9_-]+\\)\\s-*=\\s-*\"\\([^\"]+\\)\"" line)
+              (let ((pkg-name (match-string 1 line))
+                    (version (match-string 2 line)))
+                (push (cons pkg-name version) packages)))))))
+        (forward-line 1))
+      (reverse packages))))
+
+(defun bfepm-demo-load-packages-from-toml ()
+  "Load package list from sample/bfepm.toml file or BFEPM configuration."
+  (condition-case load-toml-err
+      (progn
+        ;; Always try to load from TOML file first for demo purposes
+        (let ((config-file (expand-file-name "sample/bfepm.toml")))
+          (if (file-exists-p config-file)
+              (let ((packages-with-versions (bfepm-demo-parse-toml-packages config-file)))
+                (if packages-with-versions
+                    (progn
+                      (setq bfepm-demo-packages 
+                            (mapcar (lambda (pkg-info)
+                                      (let ((pkg-name (car pkg-info))
+                                            (version (cdr pkg-info)))
+                                        (list pkg-name 
+                                              (format "%s (version: %s)" 
+                                                      (or (cadr (assoc pkg-name bfepm-demo-package-descriptions))
+                                                          "Package from sample/bfepm.toml")
+                                                      version))))
+                                    packages-with-versions))
+                      (message "[BFEPM Demo] Loaded %d packages from sample/bfepm.toml" (length packages-with-versions)))
+                  (progn
+                    (message "[BFEPM Demo] No packages found in bfepm.toml, using fallback list")
+                    (bfepm-demo-use-fallback-packages))))
+            ;; Try BFEPM configuration if TOML file doesn't exist
+            (let ((config (condition-case config-err 
+                              (bfepm-core-get-config) 
+                            (error nil))))
+              (if (and config (condition-case pkg-err 
+                                  (bfepm-config-packages config) 
+                                (error nil)))
+                  ;; Load from BFEPM configuration (includes git packages)
+                  (progn
+                    (setq bfepm-demo-packages 
+                          (mapcar (lambda (pkg)
+                                    (let* ((pkg-name (bfepm-package-name pkg))
+                                           (version (bfepm-package-version pkg))
+                                           (source (bfepm-package-source pkg))
+                                           (version-display (if (and source (plist-get source :url))
+                                                               (format "git:%s" (plist-get source :url))
+                                                             version)))
+                                      (list pkg-name 
+                                            (format "%s (version: %s)" 
+                                                    (or (cadr (assoc pkg-name bfepm-demo-package-descriptions))
+                                                        "Package from configuration")
+                                                    version-display))))
+                                  (bfepm-config-packages config)))
+                    (message "[BFEPM Demo] Loaded %d packages from BFEPM configuration" (length (bfepm-config-packages config))))
+                (progn
+                  (message "[BFEPM Demo] No configuration available, using fallback list")
+                  (bfepm-demo-use-fallback-packages)))))))
+    (error 
+     (message "[BFEPM Demo] Error loading packages: %s" (error-message-string load-toml-err))
+     (bfepm-demo-use-fallback-packages))))
 
 ;; Add BFEPM to load-path (adjust path as needed)
 (add-to-list 'load-path ".")
@@ -166,134 +314,27 @@
          ;; Ensure variable is initialized even on error
          (unless (boundp 'bfepm-demo-packages)
            (setq bfepm-demo-packages nil))
-         ;; Load fallback packages even if initialization fails
-         (bfepm-demo-use-fallback-packages)))
+         ;; Try to load packages from TOML even if BFEPM initialization fails
+         (condition-case toml-fallback-err
+             (bfepm-demo-load-packages-from-toml)
+           (error 
+            (message "[BFEPM Demo] ⚠️  TOML loading also failed: %s" (error-message-string toml-fallback-err))
+            ;; Load fallback packages only as last resort
+            (bfepm-demo-use-fallback-packages)))))
   (error 
    (message "[BFEPM Demo] ❌ Failed to load BFEPM: %s" (error-message-string outer-err))
    (message "[BFEPM Demo] This demo will have limited functionality")
    ;; Ensure variable is initialized even on complete failure
    (unless (boundp 'bfepm-demo-packages)
      (setq bfepm-demo-packages nil))
-   (bfepm-demo-use-fallback-packages)))
+   ;; Try to load packages from TOML even with complete BFEPM failure
+   (condition-case final-toml-err
+       (bfepm-demo-load-packages-from-toml)
+     (error 
+      (message "[BFEPM Demo] ⚠️  Final TOML loading failed: %s" (error-message-string final-toml-err))
+      ;; Use fallback packages only as absolute last resort
+      (bfepm-demo-use-fallback-packages)))))
 
-;; Package descriptions for demo
-(defvar bfepm-demo-package-descriptions
-  '(("company" "Modular text completion framework")
-    ("vertico" "Vertical interactive completion")
-    ("consult" "Consulting completing-read")
-    ("marginalia" "Enrich existing commands with completion annotations")
-    ("embark" "Conveniently act on minibuffer completions")
-    ("orderless" "Completion style for matching regexps in any order")
-    ("magit" "A Git porcelain inside Emacs")
-    ("which-key" "Display available keybindings in popup")
-    ("projectile" "Manage and navigate projects in Emacs easily")
-    ("doom-themes" "An opinionated pack of modern color-themes")
-    ("helm" "Incremental completion and selection narrowing framework")
-    ("ivy" "Incremental completion and selection narrowing framework")
-    ("lsp-mode" "Language Server Protocol client")
-    ("flycheck" "On-the-fly syntax checking")
-    ("yasnippet" "Yet another snippet extension")
-    ("org" "Outline-based notes management and organizer")
-    ("use-package" "Declaration macro for simplifying your .emacs")
-    ("evil" "Extensible Vi layer for Emacs")
-    ("treemacs" "Tree style file explorer")
-    ("dashboard" "Startup screen extracted from Spacemacs")
-    ("rainbow-delimiters" "Highlight delimiters according to their depth")
-    ("smartparens" "Automatic insertion, wrapping and paredit-like navigation")
-    ("expand-region" "Increase selected region by semantic units")
-    ("multiple-cursors" "Multiple cursors for Emacs")
-    ("ace-window" "Quickly switch windows")
-    ("straight-el" "Package manager with reproducible build and branch management")
-    ("emacs-async" "Asynchronous processing in Emacs")
-    ("doom-modeline" "Fancy and fast mode-line inspired by minimalism design"))
-  "Package descriptions for demo purposes.")
-
-(defun bfepm-demo-load-packages-from-toml ()
-  "Load package list from sample/bfepm.toml file or BFEPM configuration."
-  (condition-case load-toml-err
-      (let ((config (bfepm-core-get-config)))
-        (if (and config (bfepm-config-packages config))
-            ;; Load from BFEPM configuration (includes git packages)
-            (progn
-              (setq bfepm-demo-packages 
-                    (mapcar (lambda (pkg)
-                              (let* ((pkg-name (bfepm-package-name pkg))
-                                     (version (bfepm-package-version pkg))
-                                     (source (bfepm-package-source pkg))
-                                     (version-display (if (and source (plist-get source :url))
-                                                         (format "git:%s" (plist-get source :url))
-                                                       version)))
-                                (list pkg-name 
-                                      (format "%s (version: %s)" 
-                                              (or (cadr (assoc pkg-name bfepm-demo-package-descriptions))
-                                                  "Package from configuration")
-                                              version-display))))
-                            (bfepm-config-packages config)))
-              (message "[BFEPM Demo] Loaded %d packages from BFEPM configuration" (length (bfepm-config-packages config))))
-          ;; Fallback to TOML parsing if available
-          (let ((config-file (expand-file-name "sample/bfepm.toml")))
-            (if (file-exists-p config-file)
-                (let ((packages-with-versions (bfepm-demo-parse-toml-packages config-file)))
-                  (setq bfepm-demo-packages 
-                        (mapcar (lambda (pkg-info)
-                                  (let ((pkg-name (car pkg-info))
-                                        (version (cdr pkg-info)))
-                                    (list pkg-name 
-                                          (format "%s (version: %s)" 
-                                                  (or (cadr (assoc pkg-name bfepm-demo-package-descriptions))
-                                                      "Package from sample/bfepm.toml")
-                                                  version))))
-                                packages-with-versions))
-                  (message "[BFEPM Demo] Loaded %d packages from sample/bfepm.toml" (length packages-with-versions)))
-              (progn
-                (message "[BFEPM Demo] No configuration available, using fallback list")
-                (bfepm-demo-use-fallback-packages))))))
-    (error 
-     (message "[BFEPM Demo] Error loading packages: %s" (error-message-string load-toml-err))
-     (bfepm-demo-use-fallback-packages))))
-
-(defun bfepm-demo-parse-toml-packages (file)
-  "Simple TOML parser to extract package names and versions from FILE."
-  (with-temp-buffer
-    (insert-file-contents file)
-    (goto-char (point-min))
-    (let ((packages '())
-          (in-packages-section nil))
-      (while (not (eobp))
-        (let ((line (bfepm-demo-string-trim (buffer-substring-no-properties 
-                                            (line-beginning-position) 
-                                            (line-end-position)))))
-          (cond
-           ;; Check for [packages] section
-           ((string= line "[packages]")
-            (setq in-packages-section t))
-           ;; Check for any other sections (including [packages.*.config])
-           ((and (string-prefix-p "[" line)
-                 (not (string= line "[packages]")))
-            (setq in-packages-section nil))
-           ;; Parse package lines in [packages] section
-           ((and in-packages-section
-                 (not (string-prefix-p "#" line))
-                 (not (string= line ""))
-                 (not (string-prefix-p "[packages." line)))  ; Skip config subsections
-            (cond
-             ;; Handle git packages: package = { git = "url", ... }
-             ((string-match "^\\([a-zA-Z0-9_-]+\\)\\s-*=\\s-*{.*git\\s-*=\\s-*\"\\([^\"]+\\)\".*}" line)
-              (let ((pkg-name (match-string 1 line))
-                    (git-url (match-string 2 line)))
-                (push (cons pkg-name (format "git:%s" git-url)) packages)))
-             ;; Handle regular packages: package = "version"
-             ((string-match "^\\([a-zA-Z0-9_-]+\\)\\s-*=\\s-*\"\\([^\"]+\\)\"" line)
-              (let ((pkg-name (match-string 1 line))
-                    (version (match-string 2 line)))
-                (push (cons pkg-name version) packages)))))))
-        (forward-line 1))
-      (reverse packages))))
-
-(defun bfepm-demo-string-trim (string)
-  "Trim whitespace from STRING (compatibility function)."
-  (replace-regexp-in-string "\\`[ \t\n\r]+" "" 
-                            (replace-regexp-in-string "[ \t\n\r]+\\'" "" string)))
 
 (defun bfepm-demo-get-popular-package-set ()
   "Get a curated subset of packages for the popular package demo."

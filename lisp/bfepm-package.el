@@ -10,28 +10,15 @@
 (require 'tar-mode)
 (require 'bfepm-core)
 (require 'bfepm-utils)
-;; bfepm-config is optional - loaded conditionally
 
-;; Declare internal functions defined later in file
-(declare-function bfepm-package--get-package-checksum "bfepm-package")
-(declare-function bfepm-package-update "bfepm-package")
-(declare-function bfepm-package-remove "bfepm-package")
-(declare-function bfepm-package--install-single-file "bfepm-package")
-(declare-function bfepm-package--extract-tar-package "bfepm-package")
-(declare-function bfepm-package--save-version-info "bfepm-package")
-(declare-function bfepm-package--verify-installation "bfepm-package")
-(declare-function bfepm-package--extract-and-install "bfepm-package")
-(declare-function bfepm-package--install-dependencies "bfepm-package")
-(declare-function bfepm-package--download-with-checksum "bfepm-package")
-(declare-function bfepm-package--build-archive-url "bfepm-package")
-(declare-function bfepm-package--fetch-archive-contents "bfepm-package")
-(declare-function bfepm-package--get-archive-contents "bfepm-package")
-(declare-function bfepm-package--find-in-git "bfepm-package")
-(declare-function bfepm-package--find-in-elpa "bfepm-package")
-(declare-function bfepm-package--find-in-source "bfepm-package")
-(declare-function bfepm-package--download-and-install "bfepm-package")
-(declare-function bfepm-package--download-and-install-git "bfepm-package")
-(declare-function bfepm-package--find-package "bfepm-package")
+;; Try to load bfepm-config, fall back to minimal if not available
+(condition-case nil
+    (require 'bfepm-config)
+  (error
+   (condition-case nil
+       (require 'bfepm-config-minimal)
+     (error
+      (message "Warning: Neither bfepm-config nor bfepm-config-minimal available")))))
 
 (defvar bfepm-package--melpa-archive-url "https://melpa.org/packages/archive-contents"
   "URL for MELPA archive contents.")
@@ -41,6 +28,13 @@
 
 (defvar bfepm-package--archive-cache nil
   "Cache for package archive contents.")
+
+;; Forward declare global variables from other modules
+(defvar bfepm-config-file)
+
+;; Forward declare functions from optional modules
+(declare-function bfepm-config-get-package "bfepm-config" (config package-name))
+
 
 (defun bfepm-package--get-default-sources ()
   "Get default package sources when config is not available."
@@ -94,63 +88,37 @@
     (bfepm-utils-version-satisfies-p available-version requested-version))
    (t nil)))
 
-(defun bfepm-package-install (package-spec)
-  "Install package specified by PACKAGE-SPEC.
-PACKAGE-SPEC can be a string (package name), a list (name version),
-or a bfepm-package structure."
-  (let* ((package (cond
-                   ((stringp package-spec)
-                    (make-bfepm-package :name package-spec :version "latest"))
-                   ((and (listp package-spec) (= (length package-spec) 2))
-                    (make-bfepm-package :name (car package-spec) :version (cadr package-spec)))
-                   (t package-spec)))
-         (config (bfepm-core-get-config)))
-
-    ;; Check if already installed
-    (if (bfepm-core-package-installed-p (bfepm-package-name package))
-        (bfepm-utils-message "Package %s already installed" (bfepm-package-name package))
-      (progn
-        (bfepm-utils-message "Installing package: %s" (bfepm-package-name package))
-
-        ;; Find package in sources
-        (let ((package-info (bfepm-package--find-package package config)))
-          (unless package-info
-            (bfepm-utils-error "Package not found: %s" (bfepm-package-name package)))
-
-          ;; Validate version if specified
-          (when (and (not (string= (bfepm-package-version package) "latest"))
-                     package-info)
-            (let* ((info-list (if (vectorp package-info) (append package-info nil) package-info))
-                   (available-version (bfepm-package--format-version (car info-list)))
-                   (requested-version (bfepm-package-version package)))
-              (unless (bfepm-package--version-matches-p available-version requested-version)
-                (bfepm-utils-message "Warning: Requested version %s not available. Latest is %s"
-                                  requested-version available-version))))
-
-          ;; Download and install
-          (let* ((info-list (if (vectorp package-info) (append package-info nil) package-info))
-                 (kind (cadddr info-list)))
-            (if (eq kind 'git)
-                (bfepm-package--download-and-install-git package package-info)
-              (bfepm-package--download-and-install package package-info)))))))
-
 (defun bfepm-package--find-package (package config)
   "Find PACKAGE in available sources from CONFIG."
   (let* ((package-name (bfepm-package-name package))
          (package-source (bfepm-package-source package)))
-    
-    ;; If package has its own source configuration (e.g., git), use that first
-    (if package-source
-        (bfepm-package--find-in-source package-name package-source)
-      ;; Otherwise, try each configured source in priority order
-      (let ((sources (if config
-                        (bfepm-config-sources config)
-                      (bfepm-package--get-default-sources))))
-        (cl-loop for source in (sort sources (lambda (a b)
-                                               (> (bfepm-package--get-source-priority (cdr a))
-                                                  (bfepm-package--get-source-priority (cdr b)))))
-                 for package-info = (bfepm-package--find-in-source package-name (cdr source))
-                 when package-info return package-info)))))
+
+    ;; Check for known git packages if no config or source
+    (or (when (and (not package-source) 
+                   (or (not config) (= (length (bfepm-config-packages config)) 0)))
+          (let ((git-packages-map '(("straight-el" . (:url "https://github.com/radian-software/straight.el.git" :ref "develop"))
+                                    ("emacs-async" . (:url "https://github.com/jwiegley/emacs-async.git" :ref "v1.9.8"))
+                                    ("doom-modeline" . (:url "https://github.com/seagle0128/doom-modeline.git" :ref "4.3.0")))))
+            (let ((git-spec (cdr (assoc package-name git-packages-map))))
+              (when git-spec
+                (bfepm-utils-message "Found git package specification for %s" package-name)
+                (list (plist-get git-spec :ref) nil 
+                      (format "Git package from %s" (plist-get git-spec :url)) 
+                      'git 
+                      git-spec)))))
+        
+        ;; If package has its own source configuration (e.g., git), use that first
+        (if package-source
+            (bfepm-package--find-in-source package-name package-source)
+          ;; Otherwise, try each configured source in priority order
+          (let ((sources (if config
+                            (bfepm-config-sources config)
+                          (bfepm-package--get-default-sources))))
+            (cl-loop for source in (sort sources (lambda (a b)
+                                                   (> (bfepm-package--get-source-priority (cdr a))
+                                                      (bfepm-package--get-source-priority (cdr b)))))
+                     for package-info = (bfepm-package--find-in-source package-name (cdr source))
+                     when package-info return package-info))))))
 
 (defun bfepm-package--find-in-source (package-name source)
   "Find PACKAGE-NAME in SOURCE."
@@ -199,6 +167,123 @@ or a bfepm-package structure."
        (bfepm-utils-error "Failed to fetch archive contents from %s: %s"
                          archive-file (error-message-string err))))))
 
+(defun bfepm-package--build-archive-url (package-name version kind)
+  "Build archive URL for PACKAGE-NAME with improved format detection.
+VERSION is the package version, KIND is the package type."
+  (let ((extension (cond
+                    ((eq kind 'tar) "tar")
+                    ((eq kind 'single) "el")
+                    (t "el"))))
+    (format "https://melpa.org/packages/%s-%s.%s"
+            package-name version extension)))
+
+(defun bfepm-package--get-package-checksum (_package-name _version _kind)
+  "Get expected checksum for PACKAGE-NAME VERSION of KIND from MELPA."
+  ;; This is a placeholder - MELPA doesn't currently provide checksums
+  ;; In the future, this could fetch from a checksum database or MELPA API
+  (bfepm-utils-message "Checksum verification not available for MELPA packages")
+  nil)
+
+(defun bfepm-package--download-with-checksum (url local-file package-name version kind)
+  "Download file from URL with optional checksum verification.
+LOCAL-FILE is the destination path for download.
+PACKAGE-NAME, VERSION, and KIND are used for checksum verification."
+  ;; Download the file
+  (unless (bfepm-utils-download-file url local-file 3)
+    (bfepm-utils-error "Failed to download %s after retries" package-name))
+
+  ;; Verify file was downloaded successfully
+  (unless (and (file-exists-p local-file)
+               (> (file-attribute-size (file-attributes local-file)) 0))
+    (bfepm-utils-error "Downloaded file %s is empty or missing" local-file))
+
+  ;; Optional checksum verification (currently not available for MELPA)  
+  (let ((expected-checksum (bfepm-package--get-package-checksum package-name version kind)))
+    (when expected-checksum
+      (bfepm-utils-message "Verifying checksum for %s" package-name)
+      (unless (bfepm-utils-verify-checksum local-file expected-checksum)
+        (bfepm-utils-error "Checksum verification failed for %s" package-name))))
+
+  t)
+
+(defun bfepm-package--install-dependencies (deps)
+  "Install package dependencies DEPS."
+  (when deps
+    (dolist (dep deps)
+      (let ((dep-name (symbol-name (car dep))))
+        ;; Skip built-in packages like 'emacs'
+        (unless (or (string= dep-name "emacs")
+                    (bfepm-core-package-installed-p dep-name))
+          (bfepm-utils-message "Installing dependency: %s" dep-name)
+          (condition-case err
+              (bfepm-package-install dep-name)
+            (error
+             (bfepm-utils-message "Warning: Failed to install dependency %s: %s"
+                               dep-name (error-message-string err)))))))))
+
+(defun bfepm-package--extract-tar-package (tar-file install-dir)
+  "Extract TAR-FILE to INSTALL-DIR with error checking."
+  (let ((default-directory install-dir))
+    (bfepm-utils-message "Extracting tar package to %s" install-dir)
+    (let ((result (call-process "tar" nil nil nil "-xf" tar-file "--strip-components=1")))
+      (unless (= result 0)
+        (bfepm-utils-error "Failed to extract tar file %s (exit code: %d)" tar-file result))
+      ;; Verify extraction succeeded
+      (unless (> (length (directory-files install-dir nil "^[^.]")) 0)
+        (bfepm-utils-error "Tar extraction failed: no files found in %s" install-dir)))))
+
+(defun bfepm-package--install-single-file (el-file install-dir)
+  "Install single EL-FILE to INSTALL-DIR with verification."
+  (let ((target-file (expand-file-name (file-name-nondirectory el-file) install-dir)))
+    (bfepm-utils-message "Installing single file to %s" target-file)
+    (copy-file el-file target-file t)
+    ;; Verify file was copied
+    (unless (file-exists-p target-file)
+      (bfepm-utils-error "Failed to copy file %s to %s" el-file target-file))))
+
+(defun bfepm-package--extract-and-install (package-name archive-file kind)
+  "Extract and install PACKAGE-NAME from ARCHIVE-FILE.
+KIND specifies the package type (tar or single file)."
+  (let ((install-dir (expand-file-name package-name (bfepm-core-get-packages-directory))))
+    (bfepm-utils-ensure-directory install-dir)
+
+    (cond
+     ((eq kind 'tar)
+      (bfepm-package--extract-tar-package archive-file install-dir))
+     (t
+      (bfepm-package--install-single-file archive-file install-dir)))
+
+    ;; Add to load-path
+    (add-to-list 'load-path install-dir)))
+
+(defun bfepm-package--save-version-info (package-name version)
+  "Save VERSION information for PACKAGE-NAME."
+  (let* ((package-dir (expand-file-name package-name (bfepm-core-get-packages-directory)))
+         (version-file (expand-file-name ".bfepm-version" package-dir)))
+    (when (file-directory-p package-dir)
+      (with-temp-file version-file
+        (insert (format "%s\n" version))))))
+
+(defun bfepm-package--verify-installation (package-name install-dir)
+  "Verify that PACKAGE-NAME was installed correctly in INSTALL-DIR."
+  (unless (file-directory-p install-dir)
+    (bfepm-utils-error "Installation directory %s does not exist" install-dir))
+
+  ;; Check for at least one .el file
+  (let ((el-files (directory-files install-dir nil "\\.el$")))
+    (unless el-files
+      (bfepm-utils-error "No .el files found in %s" install-dir))
+
+    ;; Check that main package file exists (package-name.el)
+    (let ((main-file (format "%s.el" package-name)))
+      (unless (member main-file el-files)
+        ;; If main file doesn't exist, check if any .el file contains the package name
+        (unless (cl-some (lambda (file) (string-match-p package-name file)) el-files)
+          (bfepm-utils-message "Warning: Main package file %s not found, but other .el files exist" main-file))))
+
+    (bfepm-utils-message "Installation verified: %d .el files found in %s"
+                        (length el-files) install-dir)))
+
 (defun bfepm-package--download-and-install (package package-info)
   "Download and install PACKAGE using PACKAGE-INFO."
   (let* ((package-name (bfepm-package-name package))
@@ -245,73 +330,155 @@ or a bfepm-package structure."
 
     (bfepm-utils-message "Successfully installed %s" package-name)))
 
-(defun bfepm-package--build-archive-url (package-name version kind)
-  "Build archive URL for PACKAGE-NAME with improved format detection.
-VERSION is the package version, KIND is the package type."
-  (let ((extension (cond
-                    ((eq kind 'tar) "tar")
-                    ((eq kind 'single) "el")
-                    (t "el"))))
-    (format "https://melpa.org/packages/%s-%s.%s"
-            package-name version extension)))
+(defun bfepm-package--download-and-install-git (package package-info)
+  "Download and install git PACKAGE using PACKAGE-INFO."
+  (let* ((package-name (bfepm-package-name package))
+         (info-list (if (vectorp package-info) (append package-info nil) package-info))
+         (source-config (nth 4 info-list)) ; Source config is included in package-info
+         (url (bfepm-package--get-source-url source-config))
+         (ref (or (plist-get source-config :ref) 
+                  (bfepm-package-version package)
+                  "latest"))
+         (shallow (plist-get source-config :shallow))
+         (install-dir (expand-file-name package-name (bfepm-core-get-packages-directory))))
 
-(defun bfepm-package--install-dependencies (deps)
-  "Install package dependencies DEPS."
-  (when deps
-    (dolist (dep deps)
-      (let ((dep-name (symbol-name (car dep))))
-        ;; Skip built-in packages like 'emacs'
-        (unless (or (string= dep-name "emacs")
-                    (bfepm-core-package-installed-p dep-name))
-          (bfepm-utils-message "Installing dependency: %s" dep-name)
-          (condition-case err
-              (bfepm-package-install dep-name)
-            (error
-             (bfepm-utils-message "Warning: Failed to install dependency %s: %s"
-                               dep-name (error-message-string err)))))))))
+    (unless url
+      (bfepm-utils-error "No git URL found for package %s" package-name))
 
-(defun bfepm-package--extract-and-install (package-name archive-file kind)
-  "Extract and install PACKAGE-NAME from ARCHIVE-FILE.
-KIND specifies the package type (tar or single file)."
-  (let ((install-dir (expand-file-name package-name (bfepm-core-get-packages-directory))))
-    (bfepm-utils-ensure-directory install-dir)
+    (bfepm-utils-message "Installing git package %s from %s" package-name url)
 
-    (cond
-     ((eq kind 'tar)
-      (bfepm-package--extract-tar-package archive-file install-dir))
-     (t
-      (bfepm-package--install-single-file archive-file install-dir)))
+    ;; Remove existing installation if it exists
+    (when (file-directory-p install-dir)
+      (delete-directory install-dir t))
 
-    ;; Add to load-path
-    (add-to-list 'load-path install-dir)))
+    ;; Clone repository
+    (condition-case err
+        (progn
+          (bfepm-utils-git-clone url install-dir 
+                                 (unless (string= ref "latest") ref)
+                                 shallow)
+          
+          ;; Determine actual version from git
+          (let ((actual-version (bfepm-package--get-git-version install-dir ref)))
+            ;; Save version information
+            (bfepm-package--save-version-info package-name actual-version)
+            
+            ;; Scan and install dependencies from Package-Requires header
+            (bfepm-package--install-git-dependencies package-name install-dir)
+            
+            ;; Verify installation
+            (bfepm-package--verify-installation package-name install-dir)
+            
+            ;; Add to load-path
+            (add-to-list 'load-path install-dir)
+            
+            ;; Invalidate caches after successful installation
+            (bfepm-core--invalidate-cache package-name)
+            
+            (bfepm-utils-message "Successfully installed git package %s (version: %s)" 
+                                package-name actual-version)))
+      (error
+       ;; Rollback on failure
+       (when (file-directory-p install-dir)
+         (bfepm-utils-message "Rolling back failed git installation of %s" package-name)
+         (ignore-errors (delete-directory install-dir t)))
+       (bfepm-utils-error "Failed to install git package %s: %s" 
+                         package-name (error-message-string err))))))
 
-(defun bfepm-package--extract-tar-package (tar-file install-dir)
-  "Extract TAR-FILE to INSTALL-DIR with error checking."
-  (let ((default-directory install-dir))
-    (bfepm-utils-message "Extracting tar package to %s" install-dir)
-    (let ((result (call-process "tar" nil nil nil "-xf" tar-file "--strip-components=1")))
-      (unless (= result 0)
-        (bfepm-utils-error "Failed to extract tar file %s (exit code: %d)" tar-file result))
-      ;; Verify extraction succeeded
-      (unless (> (length (directory-files install-dir nil "^[^.]")) 0)
-        (bfepm-utils-error "Tar extraction failed: no files found in %s" install-dir)))))
+(defun bfepm-package--install-git-dependencies (package-name install-dir)
+  "Scan PACKAGE-NAME in INSTALL-DIR for Package-Requires and install deps."
+  (let ((main-file (expand-file-name (format "%s.el" package-name) install-dir)))
+    (when (file-exists-p main-file)
+      (condition-case err
+          (with-temp-buffer
+            (insert-file-contents main-file nil 0 4096) ; Read first 4KB to find headers
+            (goto-char (point-min))
+            ;; Look for Package-Requires header
+            (when (re-search-forward "^;; Package-Requires: *\\(.*\\)$" nil t)
+              (let ((requires-string (match-string 1)))
+                (condition-case parse-err
+                    (let ((deps (read requires-string)))
+                      (when (and deps (listp deps))
+                        (bfepm-utils-message "Installing dependencies for git package %s: %s" 
+                                           package-name 
+                                           (mapconcat (lambda (dep) (symbol-name (car dep))) deps ", "))
+                        (bfepm-package--install-dependencies deps)))
+                  (error
+                   (bfepm-utils-message "Warning: Failed to parse Package-Requires header for %s: %s"
+                                      package-name (error-message-string parse-err)))))))
+        (error
+         (bfepm-utils-message "Warning: Failed to scan dependencies for %s: %s"
+                            package-name (error-message-string err)))))))
 
-(defun bfepm-package--install-single-file (el-file install-dir)
-  "Install single EL-FILE to INSTALL-DIR with verification."
-  (let ((target-file (expand-file-name (file-name-nondirectory el-file) install-dir)))
-    (bfepm-utils-message "Installing single file to %s" target-file)
-    (copy-file el-file target-file t)
-    ;; Verify file was copied
-    (unless (file-exists-p target-file)
-      (bfepm-utils-error "Failed to copy file %s to %s" el-file target-file))))
+(defun bfepm-package--get-git-version (repo-dir ref)
+  "Get version for git package at REPO-DIR with REF."
+  (cond
+   ;; If ref is "latest" or nil, try to get latest tag, then commit hash
+   ((or (not ref) (string= ref "latest"))
+    (or (bfepm-utils-git-get-latest-tag repo-dir)
+        (bfepm-utils-git-get-commit-hash repo-dir)
+        "unknown"))
+   ;; If ref looks like a commit hash, return it
+   ((string-match-p "^[a-f0-9]\\{7,40\\}$" ref)
+    (or (bfepm-utils-git-get-commit-hash repo-dir ref) ref))
+   ;; For tags or branches, resolve to commit hash for reproducibility
+   (t (or (bfepm-utils-git-get-commit-hash repo-dir ref) ref))))
 
-(defun bfepm-package--save-version-info (package-name version)
-  "Save VERSION information for PACKAGE-NAME."
-  (let* ((package-dir (expand-file-name package-name (bfepm-core-get-packages-directory)))
-         (version-file (expand-file-name ".bfepm-version" package-dir)))
-    (when (file-directory-p package-dir)
-      (with-temp-file version-file
-        (insert (format "%s\n" version))))))
+(defun bfepm-package-install (package-spec)
+  "Install package specified by PACKAGE-SPEC.
+PACKAGE-SPEC can be a string (package name), a list (name version),
+or a bfepm-package structure."
+  ;; Ensure config file is set if not already set
+  (unless (and (boundp 'bfepm-config-file) bfepm-config-file)
+    (let ((default-config-files '("bfepm.toml" "sample/bfepm.toml" ".bfepm.toml")))
+      (dolist (config-file default-config-files)
+        (when (and (not (boundp 'bfepm-config-file)) (file-exists-p config-file))
+          (setq bfepm-config-file (expand-file-name config-file))
+          (bfepm-utils-message "Using config file: %s" bfepm-config-file)))))
+
+  (let* ((config (bfepm-core-get-config))
+         (package (if (bfepm-package-p package-spec)
+                      package-spec  ; Already a git package
+                    (cond
+                     ((stringp package-spec)
+                      ;; First check if this package is defined in config (might be git package)
+                      (if config
+                          (let ((config-package (bfepm-config-get-package config package-spec)))
+                            (if config-package
+                                config-package  ; Use the configured package (with git source if applicable)
+                              (make-bfepm-package :name package-spec :version "latest")))
+                        (make-bfepm-package :name package-spec :version "latest")))
+                     ((and (listp package-spec) (= (length package-spec) 2))
+                      (make-bfepm-package :name (car package-spec) :version (cadr package-spec)))
+                     (t package-spec)))))
+
+    ;; Check if already installed
+    (if (bfepm-core-package-installed-p (bfepm-package-name package))
+        (bfepm-utils-message "Package %s already installed" (bfepm-package-name package))
+      (progn
+        (bfepm-utils-message "Installing package: %s" (bfepm-package-name package))
+
+        ;; Find package in sources
+        (let ((package-info (bfepm-package--find-package package config)))
+          (unless package-info
+            (bfepm-utils-error "Package not found: %s" (bfepm-package-name package)))
+
+          ;; Validate version if specified
+          (when (and (not (string= (bfepm-package-version package) "latest"))
+                     package-info)
+            (let* ((info-list (if (vectorp package-info) (append package-info nil) package-info))
+                   (available-version (bfepm-package--format-version (car info-list)))
+                   (requested-version (bfepm-package-version package)))
+              (unless (bfepm-package--version-matches-p available-version requested-version)
+                (bfepm-utils-message "Warning: Requested version %s not available. Latest is %s"
+                                  requested-version available-version))))
+
+          ;; Download and install
+          (let* ((info-list (if (vectorp package-info) (append package-info nil) package-info))
+                 (kind (cadddr info-list)))
+            (if (eq kind 'git)
+                (bfepm-package--download-and-install-git package package-info)
+              (bfepm-package--download-and-install package package-info))))))))
 
 (defun bfepm-package-remove (package-name)
   "Remove installed package PACKAGE-NAME."
@@ -381,121 +548,6 @@ KIND specifies the package type (tar or single file)."
   ;; This would implement actual search functionality
   ;; For now, just a placeholder
   (bfepm-utils-message "Search functionality not yet implemented"))
-
-(defun bfepm-package--verify-installation (package-name install-dir)
-  "Verify that PACKAGE-NAME was installed correctly in INSTALL-DIR."
-  (unless (file-directory-p install-dir)
-    (bfepm-utils-error "Installation directory %s does not exist" install-dir))
-
-  ;; Check for at least one .el file
-  (let ((el-files (directory-files install-dir nil "\\.el$")))
-    (unless el-files
-      (bfepm-utils-error "No .el files found in %s" install-dir))
-
-    ;; Check that main package file exists (package-name.el)
-    (let ((main-file (format "%s.el" package-name)))
-      (unless (member main-file el-files)
-        ;; If main file doesn't exist, check if any .el file contains the package name
-        (unless (cl-some (lambda (file) (string-match-p package-name file)) el-files)
-          (bfepm-utils-message "Warning: Main package file %s not found, but other .el files exist" main-file))))
-
-    (bfepm-utils-message "Installation verified: %d .el files found in %s"
-                        (length el-files) install-dir)))
-
-(defun bfepm-package--get-package-checksum (_package-name _version _kind)
-  "Get expected checksum for PACKAGE-NAME VERSION of KIND from MELPA."
-  ;; This is a placeholder - MELPA doesn't currently provide checksums
-  ;; In the future, this could fetch from a checksum database or MELPA API
-  (bfepm-utils-message "Checksum verification not available for MELPA packages")
-  nil)
-
-(defun bfepm-package--download-with-checksum (url local-file package-name version kind)
-  "Download file from URL with optional checksum verification.
-LOCAL-FILE is the destination path for download.
-PACKAGE-NAME, VERSION, and KIND are used for checksum verification."
-  ;; Download the file
-  (unless (bfepm-utils-download-file url local-file 3)
-    (bfepm-utils-error "Failed to download %s after retries" package-name))
-
-  ;; Verify file was downloaded successfully
-  (unless (and (file-exists-p local-file)
-               (> (file-attribute-size (file-attributes local-file)) 0))
-    (bfepm-utils-error "Downloaded file %s is empty or missing" local-file))
-
-  ;; Optional checksum verification (currently not available for MELPA)  
-  (let ((expected-checksum (bfepm-package--get-package-checksum package-name version kind)))
-    (when expected-checksum
-      (bfepm-utils-message "Verifying checksum for %s" package-name)
-      (unless (bfepm-utils-verify-checksum local-file expected-checksum)
-        (bfepm-utils-error "Checksum verification failed for %s" package-name))))
-
-  t)
-
-(defun bfepm-package--download-and-install-git (package package-info)
-  "Download and install git PACKAGE using PACKAGE-INFO."
-  (let* ((package-name (bfepm-package-name package))
-         (info-list (if (vectorp package-info) (append package-info nil) package-info))
-         (source-config (nth 4 info-list)) ; Source config is included in package-info
-         (url (bfepm-package--get-source-url source-config))
-         (ref (or (plist-get source-config :ref) 
-                  (bfepm-package-version package)
-                  "latest"))
-         (shallow (plist-get source-config :shallow))
-         (install-dir (expand-file-name package-name (bfepm-core-get-packages-directory))))
-
-    (unless url
-      (bfepm-utils-error "No git URL found for package %s" package-name))
-
-    (bfepm-utils-message "Installing git package %s from %s" package-name url)
-
-    ;; Remove existing installation if it exists
-    (when (file-directory-p install-dir)
-      (delete-directory install-dir t))
-
-    ;; Clone repository
-    (condition-case err
-        (progn
-          (bfepm-utils-git-clone url install-dir 
-                                 (unless (string= ref "latest") ref)
-                                 shallow)
-          
-          ;; Determine actual version from git
-          (let ((actual-version (bfepm-package--get-git-version install-dir ref)))
-            ;; Save version information
-            (bfepm-package--save-version-info package-name actual-version)
-            
-            ;; Verify installation
-            (bfepm-package--verify-installation package-name install-dir)
-            
-            ;; Add to load-path
-            (add-to-list 'load-path install-dir)
-            
-            ;; Invalidate caches after successful installation
-            (bfepm-core--invalidate-cache package-name)
-            
-            (bfepm-utils-message "Successfully installed git package %s (version: %s)" 
-                                package-name actual-version)))
-      (error
-       ;; Rollback on failure
-       (when (file-directory-p install-dir)
-         (bfepm-utils-message "Rolling back failed git installation of %s" package-name)
-         (ignore-errors (delete-directory install-dir t)))
-       (bfepm-utils-error "Failed to install git package %s: %s" 
-                         package-name (error-message-string err)))))))
-
-(defun bfepm-package--get-git-version (repo-dir ref)
-  "Get version for git package at REPO-DIR with REF."
-  (cond
-   ;; If ref is "latest" or nil, try to get latest tag, then commit hash
-   ((or (not ref) (string= ref "latest"))
-    (or (bfepm-utils-git-get-latest-tag repo-dir)
-        (bfepm-utils-git-get-commit-hash repo-dir)
-        "unknown"))
-   ;; If ref looks like a commit hash, return it
-   ((string-match-p "^[a-f0-9]\\{7,40\\}$" ref)
-    (or (bfepm-utils-git-get-commit-hash repo-dir ref) ref))
-   ;; For tags or branches, return the ref itself
-   (t ref)))
 
 (provide 'bfepm-package)
 
