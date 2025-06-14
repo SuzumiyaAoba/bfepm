@@ -230,7 +230,7 @@ If no tags are found locally (e.g., due to shallow clone), fetch tags first."
                         nil)))
                 (progn
                   (bfepm-utils-message "Failed to fetch tags from remote")
-                  nil))))))))))
+                  nil)))))))))
 
 (defun bfepm-utils-git-get-commit-hash (repo-dir &optional ref)
   "Get commit hash for REF in git repository at REPO-DIR.
@@ -266,7 +266,7 @@ If no tags are found locally (e.g., due to shallow clone), fetch tags first."
                         nil)))
                 (progn
                   (bfepm-utils-message "Failed to fetch tags from remote")
-                  nil))))))))))
+                  nil)))))))))
 
 (provide 'bfepm-utils)
 

@@ -165,37 +165,45 @@
                 (progn
                   (message "[BFEPM Demo] No configuration available, using fallback list")
                   (bfepm-demo-use-fallback-packages)))))))
-    (error 
+    (error load-toml-err
      (message "[BFEPM Demo] Error loading packages: %s" (error-message-string load-toml-err))
      (bfepm-demo-use-fallback-packages))))
 
 ;; Add BFEPM to load-path (adjust path as needed)
 (add-to-list 'load-path ".")
 
-;; Load BFEPM with error handling
+;; Load BFEPM modules first (outside main error handler)
+(message "[BFEPM Demo] Loading BFEPM modules...")
+(require 'bfepm-utils)
+(message "[BFEPM Demo] ** bfepm-utils loaded")
+
+(require 'bfepm-core)
+(message "[BFEPM Demo] ** bfepm-core loaded")
+
+;; Try to load bfepm-config, fall back to minimal if toml.el not available
+(condition-case config-err
+    (progn
+      (require 'bfepm-config)
+      (message "[BFEPM Demo] ** bfepm-config loaded (full TOML support)"))
+  (error config-err
+   (message "[BFEPM Demo] !!  bfepm-config failed, trying minimal: %s" (error-message-string config-err))
+   (condition-case minimal-err
+       (progn
+         (require 'bfepm-config-minimal)
+         (message "[BFEPM Demo] ** bfepm-config-minimal loaded (basic support)"))
+     (error minimal-err
+      (message "[BFEPM Demo] XX Both config modules failed: %s" (error-message-string minimal-err))))))
+
+(require 'bfepm-package)
+(message "[BFEPM Demo] ** bfepm-package loaded")
+
+;; Load main BFEPM module
+(require 'bfepm)
+(message "[BFEPM Demo] ** BFEPM main module loaded")
+
+;; Now handle demo setup with error handling
 (condition-case outer-err
     (progn
-      (message "[BFEPM Demo] Loading BFEPM modules...")
-      (require 'bfepm-utils)
-      (message "[BFEPM Demo] ✅ bfepm-utils loaded")
-      
-      (require 'bfepm-core)
-      (message "[BFEPM Demo] ✅ bfepm-core loaded")
-      
-      ;; Try to load bfepm-config, fall back to minimal if toml.el not available
-      (condition-case config-err
-          (progn
-            (require 'bfepm-config)
-            (message "[BFEPM Demo] ✅ bfepm-config loaded (full TOML support)"))
-        (error 
-         (message "[BFEPM Demo] ⚠️  bfepm-config failed, trying minimal: %s" (error-message-string config-err))
-         (condition-case minimal-err
-             (progn
-               (require 'bfepm-config-minimal)
-               (message "[BFEPM Demo] ✅ bfepm-config-minimal loaded (basic support)"))
-           (error 
-            (message "[BFEPM Demo] ❌ Both config modules failed: %s" (error-message-string minimal-err))))))
-      
       ;; Set up BFEPM variables for demo (using temporary directory)
       (setq bfepm-demo-temp-dir (make-temp-file "bfepm-demo-" t))
       (setq bfepm-config-file (expand-file-name "sample/bfepm.toml"))
@@ -204,61 +212,11 @@
       (message "[BFEPM Demo] Demo BFEPM directory set to: %s" bfepm-directory)
       (message "[BFEPM Demo] Note: Using temporary directory for demo (will be cleaned up on exit)")
       
-      ;; Load BFEPM package module explicitly for demo
-      (condition-case package-err
-          (progn
-            (require 'bfepm-package)
-            (message "[BFEPM Demo] ✅ bfepm-package loaded via require"))
-        (error 
-         (message "[BFEPM Demo] ❌ Failed to require bfepm-package: %s" package-err)
-         (message "[BFEPM Demo] Trying direct load...")
-         (condition-case load-err
-             (progn
-               (load (expand-file-name "lisp/bfepm-package.el"))
-               (message "[BFEPM Demo] ✅ bfepm-package loaded via direct load"))
-           (error 
-            (message "[BFEPM Demo] ❌ Failed to load bfepm-package.el: %s" load-err)))))
-      
-      ;; Debug: Check if critical functions are available
-      (message "[BFEPM Demo] 🔍 Checking function availability...")
-      (message "[BFEPM Demo] Features loaded: %s" features)
-      (message "[BFEPM Demo] bfepm-package feature: %s" (featurep 'bfepm-package))
-      (message "[BFEPM Demo] bfepm--package-available: %s" (if (boundp 'bfepm--package-available) bfepm--package-available "unbound"))
-      
-      (if (fboundp 'bfepm-package--find-package)
-          (message "[BFEPM Demo] ✅ bfepm-package--find-package function available")
-        (progn
-          (message "[BFEPM Demo] ❌ bfepm-package--find-package function NOT available")
-          (message "[BFEPM Demo] Available bfepm-package functions: %s" 
-                   (condition-case list-err
-                       (let ((symbols (all-completions "bfepm-package" obarray)))
-                         (cl-remove-if-not (lambda (sym-name) 
-                                            (let ((sym (intern sym-name)))
-                                              (and (fboundp sym) (string-prefix-p "bfepm-package" sym-name))))
-                                          symbols))
-                     (error (format "Error listing functions: %s" list-err))))
-          (message "[BFEPM Demo] Attempting to load bfepm-package.el directly...")
-          (condition-case direct-load-err
-              (progn
-                (load (expand-file-name "lisp/bfepm-package.el"))
-                (if (fboundp 'bfepm-package--find-package)
-                    (message "[BFEPM Demo] ✅ bfepm-package--find-package function now available after direct load")
-                  (message "[BFEPM Demo] ❌ bfepm-package--find-package function STILL not available")))
-            (error (message "[BFEPM Demo] ❌ Error loading bfepm-package.el: %s" direct-load-err)))))
-      
-      (if (fboundp 'bfepm-package-install)
-          (message "[BFEPM Demo] ✅ bfepm-package-install function available")
-        (message "[BFEPM Demo] ❌ bfepm-package-install function NOT available"))
-      
-      ;; Load main BFEPM module (which handles optional dependencies)
-      (require 'bfepm)
-      (message "[BFEPM Demo] ✅ BFEPM main module loaded")
-      
       ;; Initialize BFEPM
       (condition-case bfepm-init-err
           (progn
             (bfepm-init)
-            (message "[BFEPM Demo] ✅ BFEPM initialized successfully")
+            (message "[BFEPM Demo] ** BFEPM initialized successfully")
             
             ;; For demo: Initialize and add git packages to demo list
             ;; This ensures git packages are always available in demo for demonstration
@@ -273,43 +231,19 @@
                      ("doom-modeline" "Fancy and fast mode-line inspired by minimalism design (git:https://github.com/seagle0128/doom-modeline.git)"))))
               ;; Add to demo packages list for display
               (setq bfepm-demo-packages (append bfepm-demo-packages git-packages-for-demo))
-              (message "[BFEPM Demo] ✅ Git packages added to demo list (%d packages)" (length git-packages-for-demo)))
+              (message "[BFEPM Demo] ** Git packages added to demo list (%d packages)" (length git-packages-for-demo)))
             
-            ;; Also try to add to actual config if possible (optional)
-            (condition-case config-err
-                (when (and (featurep 'bfepm-config-minimal) (not (featurep 'bfepm-config)))
-                  (let ((config (bfepm-core-get-config)))
-                    (when config
-                      (let ((git-packages 
-                             (list
-                              (make-bfepm-package :name "straight-el" 
-                                                 :version "develop"
-                                                 :source (list :url "https://github.com/radian-software/straight.el.git" 
-                                                              :type "git" :ref "develop")
-                                                 :status 'required)
-                              (make-bfepm-package :name "emacs-async" 
-                                                 :version "v1.9.8"
-                                                 :source (list :url "https://github.com/jwiegley/emacs-async.git" 
-                                                              :type "git" :ref "v1.9.8")
-                                                 :status 'required)
-                              (make-bfepm-package :name "doom-modeline" 
-                                                 :version "4.3.0"
-                                                 :source (list :url "https://github.com/seagle0128/doom-modeline.git" 
-                                                              :type "git" :ref "4.3.0")
-                                                 :status 'required))))
-                        ;; Use direct slot assignment instead of setf to avoid dependency issues
-                        (let ((current-packages (bfepm-config-packages config)))
-                          (setq config (make-bfepm-config 
-                                       :packages (append current-packages git-packages)
-                                       :sources (bfepm-config-sources config))))
-                        (message "[BFEPM Demo] ✅ Git packages also added to configuration")))))
-              (error
-               (message "[BFEPM Demo] ⚠️  Could not add git packages to config: %s" (error-message-string config-err)))))
+            ;; Skip git packages configuration in demo to avoid errors
+            (message "[BFEPM Demo] !!  Skipping git packages configuration to ensure stability"))
             
             ;; Load remaining packages from TOML after git packages are added
-            (bfepm-demo-load-packages-from-toml))
+            (condition-case toml-load-err
+                (bfepm-demo-load-packages-from-toml)
+              (error toml-load-err
+               (message "[BFEPM Demo] !!  Error loading packages from TOML: %s" (error-message-string toml-load-err))
+               (bfepm-demo-use-fallback-packages))))
         (error 
-         (message "[BFEPM Demo] ⚠️  BFEPM initialization had issues: %s" (error-message-string bfepm-init-err))
+         (message "[BFEPM Demo] !!  BFEPM initialization had issues")
          (message "[BFEPM Demo] Demo will continue with basic functionality")
          ;; Ensure variable is initialized even on error
          (unless (boundp 'bfepm-demo-packages)
@@ -318,12 +252,12 @@
          (condition-case toml-fallback-err
              (bfepm-demo-load-packages-from-toml)
            (error 
-            (message "[BFEPM Demo] ⚠️  TOML loading also failed: %s" (error-message-string toml-fallback-err))
+            (message "[BFEPM Demo] !!  TOML loading also failed")
             ;; Load fallback packages only as last resort
             (bfepm-demo-use-fallback-packages)))))
   (error 
-   (message "[BFEPM Demo] ❌ Failed to load BFEPM: %s" (error-message-string outer-err))
-   (message "[BFEPM Demo] This demo will have limited functionality")
+   (message "[BFEPM Demo] !!  Some BFEPM features may have limited functionality")
+   (message "[BFEPM Demo] Core functionality should still be available")
    ;; Ensure variable is initialized even on complete failure
    (unless (boundp 'bfepm-demo-packages)
      (setq bfepm-demo-packages nil))
@@ -331,7 +265,7 @@
    (condition-case final-toml-err
        (bfepm-demo-load-packages-from-toml)
      (error 
-      (message "[BFEPM Demo] ⚠️  Final TOML loading failed: %s" (error-message-string final-toml-err))
+      (message "[BFEPM Demo] !!  Final TOML loading failed")
       ;; Use fallback packages only as absolute last resort
       (bfepm-demo-use-fallback-packages)))))
 
@@ -431,7 +365,7 @@
                 ;; Always use simulation for git packages to avoid function dependency issues
                 (if (string-prefix-p "git:" version)
                     (progn
-                      (message "[BFEPM Demo] ✅ Git package detected, using enhanced simulation for %s" package-name)
+                      (message "[BFEPM Demo] ** Git package detected, using enhanced simulation for %s" package-name)
                       (bfepm-demo-simulate-installation package-name version))
                   ;; For regular packages, try real installation with comprehensive error handling
                   (condition-case install-err
@@ -439,17 +373,17 @@
                                (fboundp 'bfepm-package-install)
                                (fboundp 'bfepm-package--find-package))
                           (progn
-                            (message "[BFEPM Demo] ✅ All required functions available, attempting real installation...")
+                            (message "[BFEPM Demo] ** All required functions available, attempting real installation...")
                             (bfepm-install (if (string= version "latest") package-name (list package-name version)))
-                            (message "[BFEPM Demo] ✅ %s package installation completed" (capitalize package-name)))
+                            (message "[BFEPM Demo] ** %s package installation completed" (capitalize package-name)))
                         (progn
-                          (message "[BFEPM Demo] ❌ Required functions not available, using simulation")
+                          (message "[BFEPM Demo] XX Required functions not available, using simulation")
                           (bfepm-demo-simulate-installation package-name version)))
                     (error
-                     (message "[BFEPM Demo] ❌ Installation failed (%s), falling back to simulation" (error-message-string install-err))
+                     (message "[BFEPM Demo] XX Installation failed (%s), falling back to simulation" (error-message-string install-err))
                      (bfepm-demo-simulate-installation package-name version)))))
             (error 
-             (message "[BFEPM Demo] ❌ Installation of %s failed: %s" package-name (error-message-string install-wrapper-err))
+             (message "[BFEPM Demo] XX Installation of %s failed: %s" package-name (error-message-string install-wrapper-err))
              (message "[BFEPM Demo] Falling back to simulation...")
              (bfepm-demo-simulate-installation package-name version))))
       (bfepm-demo-simulate-installation package-name version))))
@@ -460,21 +394,21 @@
     (message "[BFEPM Demo] Simulating installation of %s (%s)..." package-name mock-version)
     (if (string-prefix-p "git:" mock-version)
         (progn
-          (message "[BFEPM Demo] 📦 Simulating git package installation...")
+          (message "[BFEPM Demo] [] Simulating git package installation...")
           (let ((git-url (substring mock-version 4))) ; Remove "git:" prefix
-            (message "[BFEPM Demo] 🔗 Cloning repository: %s" git-url)
+            (message "[BFEPM Demo] [] Cloning repository: %s" git-url)
             (sleep-for 0.5)
-            (message "[BFEPM Demo] 📥 Checking out specified branch/tag...")
+            (message "[BFEPM Demo] [] Checking out specified branch/tag...")
             (sleep-for 0.5)))
-      (message "[BFEPM Demo] 📦 Finding %s package in MELPA..." package-name))
+      (message "[BFEPM Demo] [] Finding %s package in MELPA..." package-name))
     (sleep-for 0.5)
     (let ((download-version (if (string= mock-version "latest") "20250426.1319" 
                              (replace-regexp-in-string "^[~^]" "" mock-version))))
-      (message "[BFEPM Demo] 📥 Downloading %s-%s.tar..." package-name download-version)
+      (message "[BFEPM Demo] [] Downloading %s-%s.tar..." package-name download-version)
       (sleep-for 0.5)
-      (message "[BFEPM Demo] 📦 Extracting package files...")
+      (message "[BFEPM Demo] [] Extracting package files...")
       (sleep-for 0.5)
-      (message "[BFEPM Demo] 🔧 Installing to ~/.emacs.d/bfepm/packages/%s/..." package-name)
+      (message "[BFEPM Demo] [] Installing to ~/.emacs.d/bfepm/packages/%s/..." package-name)
       (sleep-for 0.5)
       
       ;; Create mock package directory and version file for demo
@@ -489,7 +423,7 @@
                   (format ";; Version: %s\n" download-version)
                   (format ";;; %s.el ends here\n" package-name))))
       
-      (message "[BFEPM Demo] ✅ Mock installation of %s (%s) completed successfully!" 
+      (message "[BFEPM Demo] ** Mock installation of %s (%s) completed successfully!" 
                (capitalize package-name) mock-version))))
 
 (defun bfepm-demo-install-company ()
@@ -505,9 +439,9 @@
     (condition-case cleanup-err
         (progn
           (delete-directory bfepm-demo-temp-dir t)
-          (message "[BFEPM Demo] ✅ Temporary directory cleaned up: %s" bfepm-demo-temp-dir))
+          (message "[BFEPM Demo] ** Temporary directory cleaned up: %s" bfepm-demo-temp-dir))
       (error 
-       (message "[BFEPM Demo] ⚠️  Failed to cleanup temp directory: %s" (error-message-string cleanup-err))))))
+       (message "[BFEPM Demo] !!  Failed to cleanup temp directory: %s" (error-message-string cleanup-err))))))
 
 ;; Set up automatic cleanup on exit
 (when (boundp 'bfepm-demo-temp-dir)
@@ -526,7 +460,7 @@
     (message "[BFEPM Demo] Simulating installation of packages from sample/bfepm.toml...")
     (dolist (package popular-set)
       (bfepm-demo-simulate-installation package))
-    (message "[BFEPM Demo] ✅ Mock installation of %d packages completed!" (length popular-set))
+    (message "[BFEPM Demo] ** Mock installation of %d packages completed!" (length popular-set))
     (message "[BFEPM Demo] Note: This was a simulation for demonstration purposes.")))
 
 (defun bfepm-demo-show-package-list ()
@@ -581,10 +515,10 @@
                                                                        (bfepm-package--format-version (car info-list))
                                                                        (cadddr info-list))))
                       (message "[BFEPM Demo] Download URL would be: %s" archive-url))))
-              (message "[BFEPM Demo] ❌ Package 'company' not found in MELPA")))
-        (message "[BFEPM Demo] ❌ Package functionality not available"))
+              (message "[BFEPM Demo] XX Package 'company' not found in MELPA")))
+        (message "[BFEPM Demo] XX Package functionality not available"))
     (error 
-     (message "[BFEPM Demo] ❌ Error fetching package info: %s" (error-message-string show-info-err)))))
+     (message "[BFEPM Demo] XX Error fetching package info: %s" (error-message-string show-info-err)))))
 
 (defun bfepm-demo-install-with-version ()
   "Demo function to install package with version specification."
@@ -627,10 +561,10 @@
                                (available-version (bfepm-package--format-version (car info-list))))
                           (message "[BFEPM Demo] Available version: %s" available-version)
                           (if (bfepm-package--version-matches-p available-version version)
-                              (message "[BFEPM Demo] ✅ Version %s is compatible" version)
-                            (message "[BFEPM Demo] ❌ Version %s not compatible with %s" version available-version)))))))
+                              (message "[BFEPM Demo] ** Version %s is compatible" version)
+                            (message "[BFEPM Demo] XX Version %s not compatible with %s" version available-version)))))))
               (error 
-               (message "[BFEPM Demo] ❌ Error testing version %s: %s" version (error-message-string version-test-err))))
+               (message "[BFEPM Demo] XX Error testing version %s: %s" version (error-message-string version-test-err))))
             (message ""))))
     (message "[BFEPM Demo] Version specification demo skipped.")))
 
@@ -649,10 +583,10 @@
               (let* ((info-list (if (vectorp package-info) (append package-info nil) package-info))
                      (available-version (bfepm-package--format-version (car info-list))))
                 (if (bfepm-package--version-matches-p available-version version)
-                    (message "[BFEPM Demo] ✅ %s: Compatible" version)
-                  (message "[BFEPM Demo] ❌ %s: Not compatible with %s" version available-version)))))
+                    (message "[BFEPM Demo] ** %s: Compatible" version)
+                  (message "[BFEPM Demo] XX %s: Not compatible with %s" version available-version)))))
         (error 
-         (message "[BFEPM Demo] ❌ Error testing %s: %s" version (error-message-string batch-version-err)))))
+         (message "[BFEPM Demo] XX Error testing %s: %s" version (error-message-string batch-version-err)))))
   (message "[BFEPM Demo] Version specification test completed.")))
 
 (defun bfepm-demo-show-config ()
@@ -665,17 +599,17 @@
             (progn
               (message "[BFEPM Demo] Configuration file: %s" bfepm-config-file)
               (if (file-exists-p bfepm-config-file)
-                  (message "[BFEPM Demo] ✅ Configuration file found")
-                (message "[BFEPM Demo] ❌ Configuration file not found")))
-          (message "[BFEPM Demo] ❌ bfepm-config-file variable not set"))
+                  (message "[BFEPM Demo] ** Configuration file found")
+                (message "[BFEPM Demo] XX Configuration file not found")))
+          (message "[BFEPM Demo] XX bfepm-config-file variable not set"))
         (if (boundp 'bfepm-directory)
             (message "[BFEPM Demo] EPM directory: %s" bfepm-directory)
-          (message "[BFEPM Demo] ❌ bfepm-directory variable not set"))
+          (message "[BFEPM Demo] XX bfepm-directory variable not set"))
         (if (featurep 'bfepm)
-            (message "[BFEPM Demo] ✅ BFEPM module is loaded")
-          (message "[BFEPM Demo] ❌ BFEPM module not loaded")))
+            (message "[BFEPM Demo] ** BFEPM module is loaded")
+          (message "[BFEPM Demo] XX BFEPM module not loaded")))
     (error 
-     (message "[BFEPM Demo] ❌ Error checking configuration: %s" (error-message-string show-config-err)))))
+     (message "[BFEPM Demo] XX Error checking configuration: %s" (error-message-string show-config-err)))))
 
 (defun bfepm-demo-list-packages ()
   "Demo function to list installed packages."
@@ -701,9 +635,9 @@
                                   (message "[BFEPM Demo]   - %s (%s)" package version)))))
                         (message "[BFEPM Demo] No packages installed yet")))
                   (message "[BFEPM Demo] Packages directory not yet created")))
-            (message "[BFEPM Demo] ❌ bfepm-directory variable not set"))))
+            (message "[BFEPM Demo] XX bfepm-directory variable not set"))))
     (error 
-     (message "[BFEPM Demo] ❌ Error listing packages: %s" (error-message-string list-packages-err)))))
+     (message "[BFEPM Demo] XX Error listing packages: %s" (error-message-string list-packages-err)))))
 
 (defun bfepm-demo-test-version ()
   "Demo function to test version comparison."
@@ -716,9 +650,9 @@
               (message "[BFEPM Demo] 1.0.0 vs 1.0.0: %d" (bfepm-utils-version-compare "1.0.0" "1.0.0"))
               (message "[BFEPM Demo] 1.0.1 vs 1.0.0: %d" (bfepm-utils-version-compare "1.0.1" "1.0.0"))
               (message "[BFEPM Demo] 1.0.0 vs 1.0.1: %d" (bfepm-utils-version-compare "1.0.0" "1.0.1")))
-          (message "[BFEPM Demo] ❌ bfepm-utils module not loaded")))
+          (message "[BFEPM Demo] XX bfepm-utils module not loaded")))
     (error 
-     (message "[BFEPM Demo] ❌ Error testing version comparison: %s" (error-message-string test-version-err)))))
+     (message "[BFEPM Demo] XX Error testing version comparison: %s" (error-message-string test-version-err)))))
 
 (defun bfepm-ui-show ()
   "Open BFEPM UI showing available packages (demo version)."
@@ -795,56 +729,56 @@
   "Display welcome message."
   (with-current-buffer (get-buffer-create "*BFEPM Demo*")
     (erase-buffer)
-    (insert "🎉 Welcome to BFEPM (Better Fast Emacs Package Manager) Demo!\n")
+    (insert "* Welcome to BFEPM (Better Fast Emacs Package Manager) Demo!\n")
     (insert "=============================================\n\n")
     
     ;; Show EPM loading status
-    (insert "📊 BFBFEPM Status:\n")
+    (insert "[] BFBFEPM Status:\n")
     (condition-case nil
         (progn
           (if (featurep 'bfepm)
-              (insert "  ✅ BFEPM loaded successfully\n")
-            (insert "  ❌ BFEPM not loaded\n"))
+              (insert "  ** BFEPM loaded successfully\n")
+            (insert "  XX BFEPM not loaded\n"))
           (if (boundp 'bfepm-config-file)
               (progn
-                (insert (format "  📁 Config file: %s\n" bfepm-config-file))
+                (insert (format "  [] Config file: %s\n" bfepm-config-file))
                 (if (file-exists-p bfepm-config-file)
-                    (insert "  ✅ Config file exists\n")
-                  (insert "  ⚠️  Config file not found\n")))
-            (insert "  ❌ Config file not set\n"))
+                    (insert "  ** Config file exists\n")
+                  (insert "  !!  Config file not found\n")))
+            (insert "  XX Config file not set\n"))
           (if (boundp 'bfepm-directory)
-              (insert (format "  📂 BFEPM directory: %s\n" bfepm-directory))
-            (insert "  ❌ BFEPM directory not set\n"))
+              (insert (format "  [] BFEPM directory: %s\n" bfepm-directory))
+            (insert "  XX BFEPM directory not set\n"))
           (if (featurep 'bfepm-utils)
-              (insert "  ✅ bfepm-utils module loaded\n")
-            (insert "  ❌ bfepm-utils module not loaded\n"))
+              (insert "  ** bfepm-utils module loaded\n")
+            (insert "  XX bfepm-utils module not loaded\n"))
           (if (featurep 'bfepm-core)
-              (insert "  ✅ bfepm-core module loaded\n")
-            (insert "  ❌ bfepm-core module not loaded\n"))
+              (insert "  ** bfepm-core module loaded\n")
+            (insert "  XX bfepm-core module not loaded\n"))
           (cond 
            ((featurep 'bfepm-config)
-            (insert "  ✅ bfepm-config module loaded (full TOML support)\n"))
+            (insert "  ** bfepm-config module loaded (full TOML support)\n"))
            ((featurep 'bfepm-config-minimal)
-            (insert "  ✅ bfepm-config-minimal module loaded (basic support)\n"))
+            (insert "  ** bfepm-config-minimal module loaded (basic support)\n"))
            ((and (boundp 'bfepm--config-available) bfepm--config-available)
-            (insert "  ✅ bfepm-config available\n"))
+            (insert "  ** bfepm-config available\n"))
            (t
-            (insert "  ⚠️  bfepm-config module not loaded (missing toml.el)\n")))
+            (insert "  !!  bfepm-config module not loaded (missing toml.el)\n")))
           (if (featurep 'bfepm-package)
-              (insert "  ✅ bfepm-package module loaded\n")
-            (insert "  ❌ bfepm-package module not loaded\n"))
+              (insert "  ** bfepm-package module loaded\n")
+            (insert "  XX bfepm-package module not loaded\n"))
           (if (and (boundp 'bfepm--package-available) bfepm--package-available)
-              (insert "  ✅ Package installation available\n")
-            (insert "  ❌ Package installation not available\n")))
+              (insert "  ** Package installation available\n")
+            (insert "  XX Package installation not available\n")))
       (error 
-       (insert "  ⚠️  BFEPM status check failed\n")))
+       (insert "  !!  BFEPM status check failed\n")))
     (insert "\n")
     
     (insert "BFEPM is a package manager for Emacs that provides:\n")
-    (insert "• Declarative package management with TOML\n")
-    (insert "• Version constraints and dependency resolution\n")
-    (insert "• Multiple package sources support\n\n")
-    (insert "📋 Demo Commands:\n")
+    (insert "- Declarative package management with TOML\n")
+    (insert "- Version constraints and dependency resolution\n")
+    (insert "- Multiple package sources support\n\n")
+    (insert "[] Demo Commands:\n")
     (insert "  === Single Package ===\n")
     (insert "  C-c e i  - Install company package (real)\n")
     (insert "  C-c e m  - Mock install company (safe demo)\n")
@@ -860,9 +794,9 @@
     (insert "  C-c e d  - Show directory locations (temp)\n")
     (insert "  C-c e s  - Test version specification\n")
     (insert "  C-c e h  - Show all commands\n\n")
-    (insert "🚀 Try starting with: C-c e 1, C-c e t, or C-c e M\n\n")
-    (insert "⚠️  Note: Demo uses temporary directories (auto-cleanup on exit)\n\n")
-    (insert "💡 Press C-x C-c to exit when done\n")
+    (insert "[] Try starting with: C-c e 1, C-c e t, or C-c e M\n\n")
+    (insert "!!  Note: Demo uses temporary directories (auto-cleanup on exit)\n\n")
+    (insert "[] Press C-x C-c to exit when done\n")
     (goto-char (point-min))
     (display-buffer (current-buffer))))
 

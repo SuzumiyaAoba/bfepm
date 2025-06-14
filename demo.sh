@@ -56,13 +56,13 @@ cd "$DEMO_DIR"
 # Start Emacs in terminal mode with demo configuration
 echo "🚀 Starting Emacs with BFEPM demo..."
 if [ -t 0 ]; then
-  emacs -nw -Q -L . -L lisp -l sample/demo-init.el || {
+  emacs -nw -Q -L . -L lisp --eval "(setq load-prefer-newer t)" -l sample/demo-init.el || {
     echo ""
     echo "📋 Emacs exited. Demo completed."
   }
 else
   echo "⚠️  Warning: Not running in a terminal. Starting Emacs in GUI mode..."
-  emacs -Q -L . -L lisp -l sample/demo-init.el || {
+  emacs -Q -L . -L lisp --eval "(setq load-prefer-newer t)" -l sample/demo-init.el || {
     echo ""
     echo "📋 Emacs exited. Demo completed."
   }
