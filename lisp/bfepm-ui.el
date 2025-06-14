@@ -477,7 +477,7 @@
           
           (insert (format "Missing/Corrupted: %d\n" missing-count))
           (insert (format "Health Status: %s\n\n" 
-                         (if (= missing-count 0) "✓ Good" "⚠ Issues Found"))))
+                         (if (= missing-count 0) "* Good" "! Issues Found"))))
         
         ;; Quick actions guide
         (insert "=== Quick Actions ===\n")
