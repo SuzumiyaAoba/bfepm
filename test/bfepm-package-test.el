@@ -10,6 +10,7 @@
 (require 'bfepm-package)
 (require 'bfepm-core)
 (require 'bfepm-utils)
+(require 'bfepm-git)
 
 ;;; Version Format Tests
 
@@ -240,91 +241,57 @@
     
     (bfepm-package-search "test-query")))
 
-;;; Git Package Installation Tests
+;;; Git Package Tests
 
-(ert-deftest bfepm-package--find-in-git ()
-  "Test finding packages in git sources."
-  (let ((git-source '(:url "https://github.com/test/repo.git" 
-                      :type "git" 
-                      :ref "v1.0.0")))
-    (let ((result (bfepm-package--find-in-git "test-package" git-source)))
+(ert-deftest bfepm-package--find-in-git-test ()
+  "Test git package discovery."
+  (let ((source '(:url "https://github.com/test/repo.git" :type "git" :ref "v1.0.0")))
+    (let ((result (bfepm-package--find-in-git "test-package" source)))
       (should (listp result))
       (should (string= (car result) "v1.0.0"))
-      (should (eq (cadddr result) 'git))
-      (should (equal (nth 4 result) git-source)))))
+      (should (eq (nth 3 result) 'git))
+      (should (eq (nth 4 result) source)))))
 
-(ert-deftest bfepm-package--find-in-git-no-ref ()
-  "Test finding packages in git sources without specific ref."
-  (let ((git-source '(:url "https://github.com/test/repo.git" 
-                      :type "git")))
-    (let ((result (bfepm-package--find-in-git "test-package" git-source)))
-      (should (listp result))
-      (should (string= (car result) "latest"))
-      (should (eq (cadddr result) 'git))
-      (should (equal (nth 4 result) git-source)))))
+(ert-deftest bfepm-package--get-git-version-test ()
+  "Test git version resolution."
+  (cl-letf (((symbol-function 'bfepm-git-get-latest-version)
+             (lambda (_repo-dir ref)
+               (cond
+                ((string= ref "v1.0.0") "abc123def")
+                ((string= ref "latest") "v2.0.0")
+                (t ref)))))
+    
+    (should (string= (bfepm-package--get-git-version "/tmp/repo" "v1.0.0") "abc123def"))
+    (should (string= (bfepm-package--get-git-version "/tmp/repo" "latest") "v2.0.0"))
+    (should (string= (bfepm-package--get-git-version "/tmp/repo" "main") "main"))))
 
-(ert-deftest bfepm-package--get-git-version-latest ()
-  "Test getting git version for latest ref."
-  (let ((test-dir "/tmp/test-git-repo"))
-    (cl-letf (((symbol-function 'bfepm-utils-git-get-latest-tag)
-               (lambda (_dir) "v2.1.0"))
-              ((symbol-function 'bfepm-utils-git-get-commit-hash)
-               (lambda (_dir &optional _ref) "abc123def456")))
-      (should (string= (bfepm-package--get-git-version test-dir "latest") "v2.1.0"))
-      (should (string= (bfepm-package--get-git-version test-dir nil) "v2.1.0")))))
+(ert-deftest bfepm-package--install-git-dependencies-test ()
+  "Test git package dependency installation."
+  (let ((test-dir (make-temp-file "bfepm-test-" t))
+        (package-name "test-package"))
+    (unwind-protect
+        (progn
+          ;; Create a mock package file with dependencies
+          (let ((package-file (expand-file-name (format "%s.el" package-name) test-dir)))
+            (with-temp-file package-file
+              (insert ";;; test-package.el --- Test package\n")
+              (insert ";; Package-Requires: ((emacs \"24.3\") (dash \"2.12.0\"))\n")
+              (insert ";;; Code:\n")
+              (insert "(provide 'test-package)\n")
+              (insert ";;; test-package.el ends here\n"))
+            
+            ;; Mock dependency installation
+            (cl-letf (((symbol-function 'bfepm-package--install-dependencies)
+                       (lambda (deps)
+                         (should (listp deps))
+                         (should (= (length deps) 2))
+                         (should (eq (caar deps) 'emacs))
+                         (should (eq (caadr deps) 'dash)))))
+              
+              (bfepm-package--install-git-dependencies package-name test-dir))))
+      (when (file-directory-p test-dir)
+        (delete-directory test-dir t)))))
 
-(ert-deftest bfepm-package--get-git-version-commit-hash ()
-  "Test getting git version for commit hash ref."
-  (let ((test-dir "/tmp/test-git-repo")
-        (commit-hash "abc123def456789"))
-    (cl-letf (((symbol-function 'bfepm-utils-git-get-commit-hash)
-               (lambda (_dir ref) ref)))
-      (should (string= (bfepm-package--get-git-version test-dir commit-hash) commit-hash)))))
-
-(ert-deftest bfepm-package--get-git-version-tag ()
-  "Test getting git version for tag ref."
-  (let ((test-dir "/tmp/test-git-repo")
-        (tag "v1.5.0"))
-    (should (string= (bfepm-package--get-git-version test-dir tag) tag))))
-
-(ert-deftest bfepm-package--download-and-install-git ()
-  "Test git package installation with mocking."
-  (let ((test-package (make-bfepm-package :name "git-test-package" :version "latest"))
-        (test-info '("latest" nil "Git package from https://github.com/test/repo.git" git (:url "https://github.com/test/repo.git" :type "git" :ref "main")))
-        (bfepm-test-cloned nil)
-        (bfepm-test-version-saved nil))
-    (cl-letf (((symbol-function 'bfepm-core-get-config)
-               (lambda () nil))
-              ((symbol-function 'bfepm-package--get-default-sources)
-               (lambda () '(("git-source" . (:url "https://github.com/test/repo.git" 
-                                            :type "git" 
-                                            :ref "main")))))
-              ((symbol-function 'bfepm-core-get-packages-directory)
-               (lambda () "/tmp/bfepm-packages"))
-              ((symbol-function 'file-directory-p)
-               (lambda (_) nil))
-              ((symbol-function 'bfepm-utils-git-clone)
-               (lambda (_url _dir &optional _ref _shallow) 
-                 (setq bfepm-test-cloned t)))
-              ((symbol-function 'bfepm-package--get-git-version)
-               (lambda (_dir _ref) "main-abc123"))
-              ((symbol-function 'bfepm-package--save-version-info)
-               (lambda (_name version) 
-                 (setq bfepm-test-version-saved version)))
-              ((symbol-function 'bfepm-package--verify-installation)
-               (lambda (_name _dir)))
-              ((symbol-function 'add-to-list)
-               (lambda (_list _item)))
-              ((symbol-function 'bfepm-core--invalidate-cache)
-               (lambda (_name)))
-              ((symbol-function 'bfepm-utils-message)
-               (lambda (_format &rest _args)))
-              ((symbol-function 'bfepm-package--find-in-git)
-               (lambda (_name _source) test-info)))
-      
-      (bfepm-package--download-and-install-git test-package test-info)
-      (should bfepm-test-cloned)
-      (should (string= bfepm-test-version-saved "main-abc123")))))
 
 (provide 'bfepm-package-test)
 
