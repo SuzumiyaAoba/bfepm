@@ -70,7 +70,11 @@
     ("smartparens" "Automatic insertion, wrapping and paredit-like navigation")
     ("expand-region" "Increase selected region by semantic units")
     ("multiple-cursors" "Multiple cursors for Emacs")
-    ("ace-window" "Quickly switch windows"))
+    ("ace-window" "Quickly switch windows")
+    ;; Git packages
+    ("straight" "Next-generation package manager for Emacs")
+    ("doom-modeline-git" "Doom modeline from git repository")
+    ("emacs-async" "Asynchronous processing library for Emacs"))
   "Package descriptions for demo purposes.")
 
 (defvar bfepm-demo-packages nil
@@ -110,7 +114,8 @@
           ("which-key" "Display available keybindings in popup"))))
 
 (defun bfepm-demo-parse-toml-packages (file)
-  "Simple TOML parser to extract package names and versions from FILE."
+  "Enhanced TOML parser to extract package names and versions from FILE.
+Supports both simple string versions and git package specifications."
   (with-temp-buffer
     (insert-file-contents file)
     (goto-char (point-min))
@@ -132,13 +137,52 @@
            ((and in-packages-section
                  (not (string-prefix-p "#" line))
                  (not (string= line ""))
-                 (not (string-prefix-p "[packages." line))  ; Skip config subsections
-                 (string-match "^\\([a-zA-Z0-9_-]+\\)\\s-*=\\s-*\"\\([^\"]+\\)\"" line))
-            (let ((pkg-name (match-string 1 line))
-                  (version (match-string 2 line)))
-              (push (cons pkg-name version) packages)))))
+                 (not (string-prefix-p "[packages." line)))  ; Skip config subsections
+            (cond
+             ;; Simple string version: package = "version"
+             ((string-match "^\\([a-zA-Z0-9_-]+\\)\\s-*=\\s-*\"\\([^\"]+\\)\"" line)
+              (let ((pkg-name (match-string 1 line))
+                    (version (match-string 2 line)))
+                (push (cons pkg-name version) packages)))
+             ;; Git package: package = { git = "url", branch = "branch" }
+             ((string-match "^\\([a-zA-Z0-9_-]+\\)\\s-*=\\s-*{\\s-*git\\s-*=" line)
+              (let ((pkg-name (match-string 1 line))
+                    (git-spec (bfepm-demo-parse-git-spec line)))
+                (when git-spec
+                  (push (cons pkg-name git-spec) packages))))))))
         (forward-line 1))
       (reverse packages))))
+
+(defun bfepm-demo-parse-git-spec (line)
+  "Parse git specification from a TOML LINE.
+Returns a string describing the git package specification."
+  (let ((git-url nil)
+        (branch nil)
+        (tag nil)
+        (ref nil))
+    ;; Extract git URL
+    (when (string-match "git\\s-*=\\s-*\"\\([^\"]+\\)\"" line)
+      (setq git-url (match-string 1 line)))
+    ;; Extract branch
+    (when (string-match "branch\\s-*=\\s-*\"\\([^\"]+\\)\"" line)
+      (setq branch (match-string 1 line)))
+    ;; Extract tag
+    (when (string-match "tag\\s-*=\\s-*\"\\([^\"]+\\)\"" line)
+      (setq tag (match-string 1 line)))
+    ;; Extract ref
+    (when (string-match "ref\\s-*=\\s-*\"\\([^\"]+\\)\"" line)
+      (setq ref (match-string 1 line)))
+    
+    ;; Build description
+    (when git-url
+      (let ((repo-name (if (string-match "/\\([^/]+\\)\\.git$" git-url)
+                           (match-string 1 git-url)
+                         "git-repo")))
+        (cond
+         (branch (format "git:%s@%s" repo-name branch))
+         (tag (format "git:%s@%s" repo-name tag))
+         (ref (format "git:%s@%s" repo-name ref))
+         (t (format "git:%s@latest" repo-name)))))))
 
 (defun bfepm-demo-string-trim (string)
   "Trim whitespace from STRING (compatibility function)."
