@@ -10,6 +10,7 @@
 (require 'tar-mode)
 (require 'bfepm-core)
 (require 'bfepm-utils)
+(require 'bfepm-git)
 ;; bfepm-config is optional - loaded conditionally
 
 (defvar bfepm-package--melpa-archive-url "https://melpa.org/packages/archive-contents"
@@ -147,11 +148,15 @@ or a bfepm-package structure."
           (push (cons cache-key contents) bfepm-package--archive-cache)
           contents))))
 
-(defun bfepm-package--find-in-git (package-name source)
+(defun bfepm-package--find-in-git (_package-name source)
   "Find PACKAGE-NAME in git SOURCE."
-  ;; Stub implementation - would implement git-based package discovery
-  (bfepm-utils-error "Git source support not yet implemented for %s from %s"
-                     package-name source))
+  (let ((url (bfepm-package--get-source-url source))
+        (ref (plist-get source :ref)))
+    (when url
+      ;; For git sources, we return a synthetic package info
+      ;; The version will be determined when actually cloning
+      ;; Include source information in the package info
+      (list (or ref "latest") nil (format "Git package from %s" url) 'git source))))
 
 (defun bfepm-package--fetch-archive-contents (archive-url)
   "Fetch archive contents from ARCHIVE-URL with error handling."
@@ -168,8 +173,20 @@ or a bfepm-package structure."
 
 (defun bfepm-package--download-and-install (package package-info)
   "Download and install PACKAGE using PACKAGE-INFO."
+  (let* (;; Handle both list and vector formats from ELPA
+         (info-list (if (vectorp package-info) (append package-info nil) package-info))
+         (kind (cadddr info-list)))
+    
+    ;; Dispatch to appropriate installation method based on package type
+    (cond
+     ((eq kind 'git)
+      (bfepm-package--download-and-install-git package package-info))
+     (t
+      (bfepm-package--download-and-install-elpa package package-info)))))
+
+(defun bfepm-package--download-and-install-elpa (package package-info)
+  "Download and install ELPA PACKAGE using PACKAGE-INFO."
   (let* ((package-name (bfepm-package-name package))
-         ;; Handle both list and vector formats from ELPA
          (info-list (if (vectorp package-info) (append package-info nil) package-info))
          (version (car info-list))
          (deps (cadr info-list))
@@ -211,6 +228,87 @@ or a bfepm-package structure."
          (bfepm-utils-error "Failed to install %s: %s" package-name (error-message-string err)))))
 
     (bfepm-utils-message "Successfully installed %s" package-name)))
+
+(defun bfepm-package--download-and-install-git (package package-info)
+  "Download and install git PACKAGE using PACKAGE-INFO."
+  (let* ((package-name (bfepm-package-name package))
+         (info-list (if (vectorp package-info) (append package-info nil) package-info))
+         (source-config (nth 4 info-list)) ; Source config is included in package-info
+         (url (bfepm-package--get-source-url source-config))
+         (ref (or (plist-get source-config :ref) 
+                  (bfepm-package-version package)
+                  "latest"))
+         (shallow (plist-get source-config :shallow))
+         (install-dir (expand-file-name package-name (bfepm-core-get-packages-directory))))
+
+    (unless url
+      (bfepm-utils-error "No git URL found for package %s" package-name))
+
+    (bfepm-utils-message "Installing git package %s from %s" package-name url)
+
+    ;; Remove existing installation if it exists
+    (when (file-directory-p install-dir)
+      (delete-directory install-dir t))
+
+    ;; Clone repository with rollback on failure
+    (condition-case err
+        (progn
+          ;; Clone the repository
+          (bfepm-git-clone url install-dir ref shallow)
+          
+          ;; Get actual version from git repository
+          (let ((version (bfepm-package--get-git-version install-dir ref)))
+            ;; Save version information
+            (bfepm-package--save-version-info package-name version)
+            
+            ;; Install dependencies by scanning Package-Requires
+            (bfepm-package--install-git-dependencies package-name install-dir)
+            
+            ;; Verify installation
+            (bfepm-package--verify-installation package-name install-dir)
+            
+            ;; Add to load-path
+            (add-to-list 'load-path install-dir)
+            
+            ;; Invalidate caches after successful installation
+            (bfepm-core--invalidate-cache package-name)
+            
+            (bfepm-utils-message "Successfully installed git package %s (version: %s)" package-name version)))
+      (error
+       ;; Rollback on failure
+       (when (file-directory-p install-dir)
+         (bfepm-utils-message "Rolling back failed git installation of %s" package-name)
+         (ignore-errors (delete-directory install-dir t)))
+       (bfepm-utils-error "Failed to install git package %s: %s" package-name (error-message-string err))))))
+
+(defun bfepm-package--get-git-version (repo-dir ref)
+  "Get version for git package at REPO-DIR with REF."
+  (bfepm-git-get-latest-version repo-dir ref))
+
+(defun bfepm-package--install-git-dependencies (package-name install-dir)
+  "Scan PACKAGE-NAME in INSTALL-DIR for Package-Requires and install deps."
+  (let ((main-file (expand-file-name (format "%s.el" package-name) install-dir)))
+    (when (file-exists-p main-file)
+      (condition-case err
+          (with-temp-buffer
+            (insert-file-contents main-file nil 0 4096) ; Read first 4KB to find headers
+            (goto-char (point-min))
+            ;; Look for Package-Requires header
+            (when (re-search-forward "^;; Package-Requires: *\\(.*\\)$" nil t)
+              (let ((requires-string (match-string 1)))
+                (condition-case parse-err
+                    (let ((deps (read requires-string)))
+                      (when (and deps (listp deps))
+                        (bfepm-utils-message "Installing dependencies for git package %s: %s" 
+                                           package-name 
+                                           (mapconcat (lambda (dep) (symbol-name (car dep))) deps ", "))
+                        (bfepm-package--install-dependencies deps)))
+                  (error
+                   (bfepm-utils-message "Warning: Failed to parse Package-Requires header for %s: %s"
+                                      package-name (error-message-string parse-err)))))))
+        (error
+         (bfepm-utils-message "Warning: Failed to read Package-Requires for git package %s: %s"
+                            package-name (error-message-string err)))))))
 
 (defun bfepm-package--build-archive-url (package-name version kind)
   "Build archive URL for PACKAGE-NAME with improved format detection.

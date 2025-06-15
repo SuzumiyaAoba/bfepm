@@ -10,6 +10,7 @@
 (require 'bfepm-package)
 (require 'bfepm-core)
 (require 'bfepm-utils)
+(require 'bfepm-git)
 
 ;;; Version Format Tests
 
@@ -239,6 +240,57 @@
                           (string-match-p "not yet implemented" format-str))))))
     
     (bfepm-package-search "test-query")))
+
+;;; Git Package Tests
+
+(ert-deftest bfepm-package--find-in-git-test ()
+  "Test git package discovery."
+  (let ((source '(:url "https://github.com/test/repo.git" :type "git" :ref "v1.0.0")))
+    (let ((result (bfepm-package--find-in-git "test-package" source)))
+      (should (listp result))
+      (should (string= (car result) "v1.0.0"))
+      (should (eq (nth 3 result) 'git))
+      (should (eq (nth 4 result) source)))))
+
+(ert-deftest bfepm-package--get-git-version-test ()
+  "Test git version resolution."
+  (cl-letf (((symbol-function 'bfepm-git-get-latest-version)
+             (lambda (_repo-dir ref)
+               (cond
+                ((string= ref "v1.0.0") "abc123def")
+                ((string= ref "latest") "v2.0.0")
+                (t ref)))))
+    
+    (should (string= (bfepm-package--get-git-version "/tmp/repo" "v1.0.0") "abc123def"))
+    (should (string= (bfepm-package--get-git-version "/tmp/repo" "latest") "v2.0.0"))
+    (should (string= (bfepm-package--get-git-version "/tmp/repo" "main") "main"))))
+
+(ert-deftest bfepm-package--install-git-dependencies-test ()
+  "Test git package dependency installation."
+  (let ((test-dir (make-temp-file "bfepm-test-" t))
+        (package-name "test-package"))
+    (unwind-protect
+        (progn
+          ;; Create a mock package file with dependencies
+          (let ((package-file (expand-file-name (format "%s.el" package-name) test-dir)))
+            (with-temp-file package-file
+              (insert ";;; test-package.el --- Test package\n")
+              (insert ";; Package-Requires: ((emacs \"24.3\") (dash \"2.12.0\"))\n")
+              (insert ";;; Code:\n")
+              (insert "(provide 'test-package)\n")
+              (insert ";;; test-package.el ends here\n"))
+            
+            ;; Mock dependency installation
+            (cl-letf (((symbol-function 'bfepm-package--install-dependencies)
+                       (lambda (deps)
+                         (should (listp deps))
+                         (should (= (length deps) 2))
+                         (should (eq (caar deps) 'emacs))
+                         (should (eq (caadr deps) 'dash)))))
+              
+              (bfepm-package--install-git-dependencies package-name test-dir))))
+      (when (file-directory-p test-dir)
+        (delete-directory test-dir t)))))
 
 (provide 'bfepm-package-test)
 

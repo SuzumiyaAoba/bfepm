@@ -83,15 +83,32 @@ NAME is the package name and SPEC is the specification data."
     (make-bfepm-package :name name :version spec))
    
    ((listp spec)
-    ;; Complex specification with version, source, etc.
-    (let ((version (or (alist-get 'version spec) "latest"))
-          (optional (alist-get 'optional spec))
-          (source (alist-get 'source spec)))
-      (make-bfepm-package
-       :name name
-       :version version
-       :source source
-       :status (if optional 'optional 'required))))
+    ;; Check if this is a git package specification
+    (let ((git-url (alist-get 'git spec)))
+      (if git-url
+          ;; Git package specification
+          (let ((branch (alist-get 'branch spec))
+                (tag (alist-get 'tag spec))
+                (ref (alist-get 'ref spec)))
+            ;; Create git source configuration
+            (let ((git-source (list :url git-url :type "git")))
+              (when branch (setq git-source (plist-put git-source :ref branch)))
+              (when tag (setq git-source (plist-put git-source :ref tag)))
+              (when ref (setq git-source (plist-put git-source :ref ref)))
+              (make-bfepm-package
+               :name name
+               :version (or branch tag ref "latest")
+               :source git-source
+               :status 'required)))
+        ;; Regular complex specification with version, source, etc.
+        (let ((version (or (alist-get 'version spec) "latest"))
+              (optional (alist-get 'optional spec))
+              (source (alist-get 'source spec)))
+          (make-bfepm-package
+           :name name
+           :version version
+           :source source
+           :status (if optional 'optional 'required))))))
    
    (t (bfepm-utils-error "Invalid package specification for %s: %s" name spec))))
 
