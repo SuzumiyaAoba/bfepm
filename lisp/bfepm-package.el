@@ -126,12 +126,23 @@ or a bfepm-package structure."
                      (bfepm-config-sources config)
                    (bfepm-package--get-default-sources))))
 
-    ;; Try each source in priority order
-    (cl-loop for source in (sort sources (lambda (a b)
-                                           (> (bfepm-package--get-source-priority (cdr a))
-                                              (bfepm-package--get-source-priority (cdr b)))))
-             for package-info = (bfepm-package--find-in-source package-name (cdr source))
-             when package-info return package-info)))
+    ;; First check if package has its own source definition in config
+    (or (when config
+          (let ((configured-package (cl-find-if (lambda (pkg)
+                                                  (string= (bfepm-package-name pkg) package-name))
+                                                (bfepm-config-packages config))))
+            (when (and configured-package (bfepm-package-source configured-package))
+              ;; Package has its own source definition
+              (let ((package-source (bfepm-package-source configured-package)))
+                (when package-source
+                  (bfepm-package--find-in-source package-name package-source))))))
+        
+        ;; Try each source in priority order
+        (cl-loop for source in (sort sources (lambda (a b)
+                                               (> (bfepm-package--get-source-priority (cdr a))
+                                                  (bfepm-package--get-source-priority (cdr b)))))
+                 for package-info = (bfepm-package--find-in-source package-name (cdr source))
+                 when package-info return package-info))))
 
 (defun bfepm-package--find-in-source (package-name source)
   "Find PACKAGE-NAME in SOURCE."

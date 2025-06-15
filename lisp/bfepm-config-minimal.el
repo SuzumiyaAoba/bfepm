@@ -55,11 +55,48 @@ CONFIG is the configuration structure to validate."
   (alist-get source-name (bfepm-config-sources config) nil nil #'string=))
 
 (defun bfepm-config-load (file)
-  "Load BFEPM configuration from FILE (minimal version - return default config)."
+  "Load BFEPM configuration from FILE (minimal version with basic parsing)."
   (bfepm-utils-message "Loading configuration from %s (minimal parser)" file)
-  ;; Minimal version just returns default config
-  ;; A more sophisticated version could implement basic TOML parsing
-  (bfepm-config-create-default))
+  (if (file-exists-p file)
+      (let ((config (bfepm-config-create-default))
+            (packages '()))
+        ;; Basic parsing for git packages
+        (with-temp-buffer
+          (insert-file-contents file)
+          (goto-char (point-min))
+          (while (re-search-forward "^\\([a-zA-Z0-9_-]+\\)\\s-*=\\s-*{\\s-*git\\s-*=\\s-*\"\\([^\"]+\\)\"\\(.*\\)}" nil t)
+            (let* ((package-name (match-string 1))
+                   (git-url (match-string 2))
+                   (rest (match-string 3))
+                   (branch nil)
+                   (tag nil)
+                   (ref nil))
+              ;; Parse branch, tag, ref
+              (when (string-match "branch\\s-*=\\s-*\"\\([^\"]+\\)\"" rest)
+                (setq branch (match-string 1 rest)))
+              (when (string-match "tag\\s-*=\\s-*\"\\([^\"]+\\)\"" rest)
+                (setq tag (match-string 1 rest)))
+              (when (string-match "ref\\s-*=\\s-*\"\\([^\"]+\\)\"" rest)
+                (setq ref (match-string 1 rest)))
+              
+              ;; Create git source
+              (let ((git-source (list :url git-url :type "git")))
+                (when branch (setq git-source (plist-put git-source :ref branch)))
+                (when tag (setq git-source (plist-put git-source :ref tag)))
+                (when ref (setq git-source (plist-put git-source :ref ref)))
+                
+                ;; Create package entry
+                (push (make-bfepm-package
+                       :name package-name
+                       :version (or branch tag ref "latest")
+                       :source git-source
+                       :status 'required)
+                      packages)))))
+        
+        ;; Update config with parsed packages
+        (setf (bfepm-config-packages config) packages)
+        config)
+    (bfepm-config-create-default)))
 
 (defun bfepm-config-save (_config file)
   "Save CONFIG to FILE (minimal version - create basic template)."
