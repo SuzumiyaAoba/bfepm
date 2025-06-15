@@ -39,8 +39,8 @@
   "Get priority from SOURCE (supports both struct and plist)."
   (cond
    ((bfepm-source-p source) (bfepm-source-priority source))
-   ((plistp source) (plist-get source :priority))
-   ((listp source) (or (alist-get 'priority source) 10))
+   ((and (listp source) (keywordp (car source))) (plist-get source :priority))
+   ((listp source) (or (cdr (assoc 'priority source)) 10))
    (t 10)))
 
 (defun bfepm-package--get-source-type (source)

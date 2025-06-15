@@ -83,27 +83,6 @@ Supports both simple string versions and git package specifications."
            ((and in-packages-section
                  (not (string-prefix-p "#" line))
                  (not (string= line ""))
-<<<<<<< HEAD
-                 (not (string-prefix-p "[packages." line)))  ; Skip config subsections
-            (cond
-             ;; Simple string version: package = "version"
-             ((string-match "^\\([a-zA-Z0-9_-]+\\)\\s-*=\\s-*\"\\([^\"]+\\)\"" line)
-              (let ((pkg-name (match-string 1 line))
-                    (version (match-string 2 line)))
-                (push (cons pkg-name version) packages)))
-             ;; Git package: package = { git = "url", branch = "branch" }
-             ((string-match "^\\([a-zA-Z0-9_-]+\\)\\s-*=\\s-*{\\s-*git\\s-*=" line)
-              (let ((pkg-name (match-string 1 line))
-                    (git-spec (bfepm-demo-parse-git-spec line)))
-                (when git-spec
-                  (push (cons pkg-name git-spec) packages))))))))
-||||||| 89a33aa
-                 (not (string-prefix-p "[packages." line))  ; Skip config subsections
-                 (string-match "^\\([a-zA-Z0-9_-]+\\)\\s-*=\\s-*\"\\([^\"]+\\)\"" line))
-            (let ((pkg-name (match-string 1 line))
-                  (version (match-string 2 line)))
-              (push (cons pkg-name version) packages)))))
-=======
                  (not (string-prefix-p "[packages." line)))  ; Skip config subsections
             (cond
              ;; Handle git packages with branch: package = { git = "url", branch = "name" }
@@ -129,12 +108,17 @@ Supports both simple string versions and git package specifications."
               (let ((pkg-name (match-string 1 line))
                     (git-url (match-string 2 line)))
                 (push (cons pkg-name (format "git:%s" git-url)) packages)))
-             ;; Handle regular packages: package = "version"
+             ;; Simple string version: package = "version"
              ((string-match "^\\([a-zA-Z0-9_-]+\\)\\s-*=\\s-*\"\\([^\"]+\\)\"" line)
               (let ((pkg-name (match-string 1 line))
                     (version (match-string 2 line)))
-                (push (cons pkg-name version) packages)))))))
->>>>>>> origin/master
+                (push (cons pkg-name version) packages)))
+             ;; Git package: package = { git = "url", branch = "branch" }
+             ((string-match "^\\([a-zA-Z0-9_-]+\\)\\s-*=\\s-*{\\s-*git\\s-*=" line)
+              (let ((pkg-name (match-string 1 line))
+                    (git-spec (bfepm-demo-parse-git-spec line)))
+                (when git-spec
+                  (push (cons pkg-name git-spec) packages))))))))
         (forward-line 1))
       (reverse packages))))
 
