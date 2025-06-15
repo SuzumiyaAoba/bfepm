@@ -185,7 +185,6 @@ or a bfepm-package structure."
   (let* (;; Handle both list and vector formats from ELPA
          (info-list (if (vectorp package-info) (append package-info nil) package-info))
          (kind (cadddr info-list)))
-    
     ;; Dispatch to appropriate installation method based on package type
     (cond
      ((eq kind 'git)
