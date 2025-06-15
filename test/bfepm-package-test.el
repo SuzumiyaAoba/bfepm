@@ -292,6 +292,7 @@
       (when (file-directory-p test-dir)
         (delete-directory test-dir t)))))
 
+
 (provide 'bfepm-package-test)
 
 ;;; bfepm-package-test.el ends here
