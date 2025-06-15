@@ -313,7 +313,7 @@ or a bfepm-package structure."
             (insert-file-contents main-file nil 0 4096) ; Read first 4KB to find headers
             (goto-char (point-min))
             ;; Look for Package-Requires header
-            (when (re-search-forward "^;; Package-Requires: *\\(.*\\)$" nil t)
+            (when (re-search-forward "^[[:space:];]*Package-Requires: *\\(.*\\)$" nil t)
               (let ((requires-string (match-string 1)))
                 (condition-case parse-err
                     (let ((deps (read requires-string)))

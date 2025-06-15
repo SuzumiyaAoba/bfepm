@@ -10,14 +10,10 @@
 
 (require 'cl-lib)
 
+
 (defcustom bfepm-git-executable "git"
   "Path to git executable."
   :type 'string
-  :group 'bfepm-git)
-
-(defcustom bfepm-git-default-timeout 300
-  "Default timeout in seconds for git operations."
-  :type 'integer
   :group 'bfepm-git)
 
 (defun bfepm-git--ensure-directory (dir)
@@ -199,13 +195,13 @@ Returns URL string or nil if remote not found."
   "Check if REF looks like a commit hash.
 Returns t if REF matches commit hash pattern (7-40 hex characters)."
   (and (stringp ref)
-       (string-match-p "^[a-f0-9]\\{7,40\\}$" ref)))
+       (string-match-p "^[A-Fa-f0-9]\\{7,40\\}$" ref)))
 
 (defun bfepm-git-validate-url (url)
   "Validate that URL is a valid git repository URL.
 Returns t if URL looks valid, nil otherwise."
   (and (stringp url)
-       (or (string-match-p "^https://.*\\.git$" url)
+       (or (string-match-p "^https://.*\\(?:\\.git\\)?$" url)
            (string-match-p "^git@.*:" url)
            (string-match-p "^ssh://.*\\.git$" url)
            (string-match-p "^file://.*" url))))
