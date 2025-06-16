@@ -82,13 +82,13 @@ If ASYNC is non-nil, install asynchronously (non-blocking)."
   (if bfepm--package-available
       (if async
           (progn
-            (message "Installing %s asynchronously..." package-spec)
+            (message "Starting installation of %s in background..." package-spec)
             (bfepm-package-install-async 
              package-spec
              (lambda (success package-name error-msg)
                (if success
-                   (message "Successfully installed %s" package-name)
-                 (message "Failed to install %s: %s" package-name error-msg)))))
+                   (message "✓ Successfully installed %s" package-name)
+                 (message "✗ Failed to install %s: %s" package-name error-msg)))))
         (bfepm-package-install package-spec))
     (message "Package installation not available (bfepm-package module not loaded)")))
 

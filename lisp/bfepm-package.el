@@ -131,7 +131,7 @@ CALLBACK is an optional function called with (success name error-message)."
 (defun bfepm-package-install-async (package-spec callback)
   "Install package specified by PACKAGE-SPEC asynchronously.
 CALLBACK is called with (success package-name error-message) when complete."
-  (run-with-timer 0.1 nil
+  (run-with-timer 0.01 nil
                   (lambda ()
                     (bfepm-package-install package-spec callback))))
 
@@ -238,7 +238,7 @@ CALLBACK is called with (success package-name error-message) when complete."
     (bfepm-utils-ensure-directory download-dir)
 
     ;; Download package file with checksum verification
-    (bfepm-utils-message "Downloading %s..." package-name)
+    (bfepm-utils-message "📥 Downloading %s (%s)..." package-name version-string)
     (bfepm-package--download-with-checksum archive-file local-file package-name version-string kind)
 
     ;; Install dependencies first
@@ -262,7 +262,7 @@ CALLBACK is called with (success package-name error-message) when complete."
            (ignore-errors (delete-directory install-dir t)))
          (bfepm-utils-error "Failed to install %s: %s" package-name (error-message-string err)))))
 
-    (bfepm-utils-message "Successfully installed %s" package-name)))
+    (bfepm-utils-message "✅ Successfully installed %s" package-name)))
 
 (defun bfepm-package--download-and-install-git (package package-info)
   "Download and install git PACKAGE using PACKAGE-INFO."
@@ -388,7 +388,7 @@ KIND specifies the package type (tar or single file)."
 (defun bfepm-package--extract-tar-package (tar-file install-dir)
   "Extract TAR-FILE to INSTALL-DIR with error checking."
   (let ((default-directory install-dir))
-    (bfepm-utils-message "Extracting tar package to %s" install-dir)
+    (bfepm-utils-message "📦 Extracting package to %s..." install-dir)
     (let ((result (call-process "tar" nil nil nil "-xf" tar-file "--strip-components=1")))
       (unless (= result 0)
         (bfepm-utils-error "Failed to extract tar file %s (exit code: %d)" tar-file result))

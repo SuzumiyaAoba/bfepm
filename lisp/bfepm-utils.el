@@ -147,7 +147,7 @@ MAX-RETRIES defaults to 3."
   (bfepm-utils-message "Downloading from %s... (attempt %d/%d)" url attempt retries)
   
   (run-with-timer 
-   0.1 nil
+   0.01 nil
    (lambda ()
      (condition-case err
          (progn

@@ -332,15 +332,15 @@
                                     (mapcar #'car (bfepm-ui--get-config-packages))
                                     nil nil))))
     (when pkg-name
-      (message "Installing %s (non-blocking)..." pkg-name)
+      (message "🔄 Installing %s in background (UI remains responsive)..." pkg-name)
       (bfepm-package-install-async 
        pkg-name
        (lambda (success package-name error-msg)
          (if success
              (progn
-               (message "Successfully installed %s" package-name)
+               (message "✓ Successfully installed %s - refreshing package list" package-name)
                (bfepm-ui-refresh))
-           (message "Failed to install %s: %s" package-name error-msg)))))))
+           (message "✗ Failed to install %s: %s" package-name error-msg)))))))
 
 (defun bfepm-ui-remove-package ()
   "Remove the package at point."

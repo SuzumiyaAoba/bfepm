@@ -87,7 +87,7 @@
       ;; Verify timer was scheduled
       (should (= (length timer-calls) 1))
       (let ((timer-call (car timer-calls)))
-        (should (= (nth 0 timer-call) 0.1))     ; 0.1 second delay
+        (should (= (nth 0 timer-call) 0.01))    ; 0.01 second delay
         (should (eq (nth 1 timer-call) nil))    ; no repeat
         (should (functionp (nth 2 timer-call)))) ; function scheduled
       
