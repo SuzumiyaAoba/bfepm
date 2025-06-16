@@ -151,7 +151,11 @@ MAX-RETRIES defaults to 3."
    (lambda ()
      (condition-case err
          (progn
+           (message "Starting download... cursor should still move")
+           (sit-for 0.001)
+           (redisplay t)
            (url-copy-file url local-file t)
+           (message "Download completed... cursor should be responsive again")
            (if (and (file-exists-p local-file)
                     (> (file-attribute-size (file-attributes local-file)) 0))
                (progn
