@@ -83,10 +83,11 @@
     (bfepm-utils-version-satisfies-p available-version requested-version))
    (t nil)))
 
-(defun bfepm-package-install (package-spec)
+(defun bfepm-package-install (package-spec &optional callback)
   "Install package specified by PACKAGE-SPEC.
 PACKAGE-SPEC can be a string (package name), a list (name version),
-or a bfepm-package structure."
+or a bfepm-package structure.
+CALLBACK is an optional function called with (success name error-message)."
   (let* ((package (cond
                    ((stringp package-spec)
                     (make-bfepm-package :name package-spec :version "latest"))
@@ -97,7 +98,9 @@ or a bfepm-package structure."
 
     ;; Check if already installed
     (if (bfepm-core-package-installed-p (bfepm-package-name package))
-        (bfepm-utils-message "Package %s already installed" (bfepm-package-name package))
+        (progn
+          (bfepm-utils-message "Package %s already installed" (bfepm-package-name package))
+          (when callback (funcall callback t (bfepm-package-name package) nil)))
       (progn
         (bfepm-utils-message "Installing package: %s" (bfepm-package-name package))
 
@@ -118,6 +121,11 @@ or a bfepm-package structure."
 
           ;; Download and install
           (bfepm-package--download-and-install package package-info))))))
+
+(defun bfepm-package-install-async (package-spec callback)
+  "Install package specified by PACKAGE-SPEC asynchronously.
+CALLBACK is called with (success package-name error-message) when complete."
+  (bfepm-package-install package-spec callback))
 
 (defun bfepm-package--find-package (package config)
   "Find PACKAGE in available sources from CONFIG."
