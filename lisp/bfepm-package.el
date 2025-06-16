@@ -101,31 +101,39 @@ CALLBACK is an optional function called with (success name error-message)."
         (progn
           (bfepm-utils-message "Package %s already installed" (bfepm-package-name package))
           (when callback (funcall callback t (bfepm-package-name package) nil)))
-      (progn
-        (bfepm-utils-message "Installing package: %s" (bfepm-package-name package))
+      (condition-case err
+          (progn
+            (bfepm-utils-message "Installing package: %s" (bfepm-package-name package))
 
-        ;; Find package in sources
-        (let ((package-info (bfepm-package--find-package package config)))
-          (unless package-info
-            (bfepm-utils-error "Package not found: %s" (bfepm-package-name package)))
+            ;; Find package in sources
+            (let ((package-info (bfepm-package--find-package package config)))
+              (unless package-info
+                (bfepm-utils-error "Package not found: %s" (bfepm-package-name package)))
 
-          ;; Validate version if specified
-          (when (and (not (string= (bfepm-package-version package) "latest"))
-                     package-info)
-            (let* ((info-list (if (vectorp package-info) (append package-info nil) package-info))
-                   (available-version (bfepm-package--format-version (car info-list)))
-                   (requested-version (bfepm-package-version package)))
-              (unless (bfepm-package--version-matches-p available-version requested-version)
-                (bfepm-utils-message "Warning: Requested version %s not available. Latest is %s"
-                                  requested-version available-version))))
+              ;; Validate version if specified
+              (when (and (not (string= (bfepm-package-version package) "latest"))
+                         package-info)
+                (let* ((info-list (if (vectorp package-info) (append package-info nil) package-info))
+                       (available-version (bfepm-package--format-version (car info-list)))
+                       (requested-version (bfepm-package-version package)))
+                  (unless (bfepm-package--version-matches-p available-version requested-version)
+                    (bfepm-utils-message "Warning: Requested version %s not available. Latest is %s"
+                                      requested-version available-version))))
 
-          ;; Download and install
-          (bfepm-package--download-and-install package package-info))))))
+              ;; Download and install
+              (bfepm-package--download-and-install package package-info))
+            (when callback (funcall callback t (bfepm-package-name package) nil)))
+        (error
+         (when callback (funcall callback nil (bfepm-package-name package)
+                                 (error-message-string err)))
+         (unless callback (signal (car err) (cdr err))))))))
 
 (defun bfepm-package-install-async (package-spec callback)
   "Install package specified by PACKAGE-SPEC asynchronously.
 CALLBACK is called with (success package-name error-message) when complete."
-  (bfepm-package-install package-spec callback))
+  (run-with-timer 0.1 nil
+                  (lambda ()
+                    (bfepm-package-install package-spec callback))))
 
 (defun bfepm-package--find-package (package config)
   "Find PACKAGE in available sources from CONFIG."

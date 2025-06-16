@@ -137,6 +137,8 @@ CALLBACK is called with (success error-message) when complete.
 MAX-RETRIES defaults to 3."
   (let ((retries (or max-retries 3))
         (attempt 0))
+    ;; Ensure parent directory exists
+    (bfepm-utils-ensure-directory (file-name-directory local-file))
     (bfepm-utils--download-file-async-attempt url local-file callback retries attempt)))
 
 (defun bfepm-utils--download-file-async-attempt (url local-file callback retries attempt)
@@ -150,7 +152,8 @@ MAX-RETRIES defaults to 3."
      (condition-case err
          (progn
            (url-copy-file url local-file t)
-           (if (file-exists-p local-file)
+           (if (and (file-exists-p local-file)
+                    (> (file-attribute-size (file-attributes local-file)) 0))
                (progn
                  (bfepm-utils-message "Downloaded to %s" local-file)
                  (funcall callback t nil))
