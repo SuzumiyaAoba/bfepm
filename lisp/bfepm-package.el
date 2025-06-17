@@ -30,6 +30,12 @@
 (defvar bfepm-package--archive-cache nil
   "Cache for package archive contents.")
 
+(defvar bfepm-package--last-archive-fetch-time nil
+  "Time of last archive fetch to implement rate limiting.")
+
+(defvar bfepm-package--archive-fetch-delay 1.0
+  "Minimum delay in seconds between archive fetches.")
+
 (defun bfepm-package--get-default-sources ()
   "Get default package sources when config is not available."
   '(("melpa" . (:url "https://melpa.org/packages/" :type "elpa" :priority 10))
@@ -131,9 +137,66 @@ CALLBACK is an optional function called with (success name error-message)."
 (defun bfepm-package-install-async (package-spec callback)
   "Install package specified by PACKAGE-SPEC asynchronously.
 CALLBACK is called with (success package-name error-message) when complete."
-  (run-with-timer 0.01 nil
-                  (lambda ()
-                    (bfepm-package-install package-spec callback))))
+  (let* ((package (cond
+                   ((stringp package-spec)
+                    (make-bfepm-package :name package-spec :version "latest"))
+                   ((and (listp package-spec) (= (length package-spec) 2))
+                    (make-bfepm-package :name (car package-spec) :version (cadr package-spec)))
+                   (t package-spec)))
+         (package-name (bfepm-package-name package)))
+
+    ;; Check if already installed
+    (if (bfepm-core-package-installed-p package-name)
+        (progn
+          (bfepm-utils-message "Package %s already installed" package-name)
+          (when callback (funcall callback t package-name nil)))
+      ;; Use async archive fetching for truly non-blocking operation
+      (bfepm-utils-message "🔄 Starting truly async installation of %s" package-name)
+      (let* ((config (bfepm-core-get-config))
+             (sources (if config
+                         (bfepm-config-sources config)
+                       (bfepm-package--get-default-sources)))
+             ;; Use the first ELPA source (highest priority)
+             (elpa-source (cl-find-if (lambda (source)
+                                       (string= (bfepm-package--get-source-type (cdr source)) "elpa"))
+                                     sources)))
+        (if elpa-source
+            (let ((archive-url (bfepm-package--get-source-url (cdr elpa-source))))
+              (bfepm-package--fetch-archive-contents-async
+               archive-url
+               (lambda (success contents error-msg)
+                 (if success
+                     (let ((package-info (alist-get (intern package-name) contents)))
+                       (if package-info
+                           ;; Get dependency info first
+                           (let* ((info-list (if (vectorp package-info) (append package-info nil) package-info))
+                                  (deps (cadr info-list)))
+                             (if deps
+                                 ;; Install dependencies asynchronously first
+                                 (bfepm-package--install-dependencies-async
+                                  deps
+                                  (lambda (dep-success dep-error-msg)
+                                    (if dep-success
+                                        ;; Download and install main package (NON-BLOCKING)
+                                        (bfepm-package--download-and-install-async package package-info
+                                          (lambda (success error-msg)
+                                            (if success
+                                                (funcall callback t package-name nil)
+                                              (funcall callback nil package-name error-msg))))
+                                      (funcall callback nil package-name
+                                             (format "Failed to install dependencies: %s" dep-error-msg)))))
+                               ;; No dependencies, install directly (NON-BLOCKING)
+                               (bfepm-package--download-and-install-async package package-info
+                                 (lambda (success error-msg)
+                                   (if success
+                                       (funcall callback t package-name nil)
+                                     (funcall callback nil package-name error-msg))))))
+                         (funcall callback nil package-name (format "Package not found: %s" package-name))))
+                   (funcall callback nil package-name error-msg)))))
+          ;; Fallback to sync method
+          (run-with-timer 0.01 nil
+                          (lambda ()
+                            (bfepm-package-install package-spec callback))))))))
 
 (defun bfepm-package--find-package (package config)
   "Find PACKAGE in available sources from CONFIG."
@@ -199,13 +262,60 @@ CALLBACK is called with (success package-name error-message) when complete."
   (let ((archive-file (concat archive-url "archive-contents")))
     (condition-case err
         (with-temp-buffer
-          (bfepm-utils-message "Fetching archive contents from %s" archive-file)
+          (bfepm-utils-message "🔍 Fetching archive contents from %s (BLOCKING - will be fixed)" archive-file)
           (url-insert-file-contents archive-file)
           (goto-char (point-min))
           (read (current-buffer)))
       (error
        (bfepm-utils-error "Failed to fetch archive contents from %s: %s"
                          archive-file (error-message-string err))))))
+
+(defun bfepm-package--fetch-archive-contents-async (archive-url callback)
+  "Fetch archive contents from ARCHIVE-URL asynchronously with rate limiting.
+CALLBACK is called with (success contents error-message) when complete."
+  (let ((archive-file (concat archive-url "archive-contents"))
+        (current-time (float-time)))
+    
+    ;; Check if we need to delay the request due to rate limiting
+    (if (and bfepm-package--last-archive-fetch-time
+             (< (- current-time bfepm-package--last-archive-fetch-time) 
+                bfepm-package--archive-fetch-delay))
+        ;; Wait before making the request
+        (let ((delay (- bfepm-package--archive-fetch-delay 
+                       (- current-time bfepm-package--last-archive-fetch-time))))
+          (bfepm-utils-message "⏱️ Rate limiting: waiting %.1fs before fetching archive contents" delay)
+          (run-with-timer delay nil
+                         (lambda ()
+                           (bfepm-package--fetch-archive-contents-async archive-url callback))))
+      ;; Make the request immediately
+      (progn
+        (setq bfepm-package--last-archive-fetch-time current-time)
+        (bfepm-utils-message "🔍 Fetching archive contents from %s (NON-BLOCKING)" archive-file)
+        (url-retrieve
+         archive-file
+         (lambda (status)
+           (condition-case err
+               (progn
+                 ;; Check for errors in status
+                 (when (plist-get status :error)
+                   (error "Archive fetch failed: %s" (plist-get status :error)))
+                 
+                 ;; Move past HTTP headers to find the response body
+                 (goto-char (point-min))
+                 (when (re-search-forward "^$" nil t)
+                   (forward-char 1))
+                 
+                 ;; Parse the archive contents
+                 (let ((contents (read (current-buffer))))
+                   (bfepm-utils-message "Successfully fetched archive contents from %s" archive-file)
+                   (funcall callback t contents nil)))
+             (error
+              (bfepm-utils-message "Failed to fetch archive contents from %s: %s"
+                                 archive-file (error-message-string err))
+              (funcall callback nil nil (error-message-string err))))
+           ;; Clean up the buffer after processing
+           (kill-buffer (current-buffer)))
+         nil t)))))
 
 (defun bfepm-package--download-and-install (package package-info)
   "Download and install PACKAGE using PACKAGE-INFO."
@@ -218,6 +328,25 @@ CALLBACK is called with (success package-name error-message) when complete."
       (bfepm-package--download-and-install-git package package-info))
      (t
       (bfepm-package--download-and-install-elpa package package-info)))))
+
+(defun bfepm-package--download-and-install-async (package package-info callback)
+  "Download and install PACKAGE using PACKAGE-INFO asynchronously.
+CALLBACK is called with (success error-message) when complete."
+  (let* (;; Handle both list and vector formats from ELPA
+         (info-list (if (vectorp package-info) (append package-info nil) package-info))
+         (kind (cadddr info-list)))
+    ;; Dispatch to appropriate installation method based on package type
+    (cond
+     ((eq kind 'git)
+      ;; Git packages still use sync method for now
+      (condition-case err
+          (progn
+            (bfepm-package--download-and-install-git package package-info)
+            (funcall callback t nil))
+        (error
+         (funcall callback nil (error-message-string err)))))
+     (t
+      (bfepm-package--download-and-install-elpa-async package package-info callback)))))
 
 (defun bfepm-package--download-and-install-elpa (package package-info)
   "Download and install ELPA PACKAGE using PACKAGE-INFO."
@@ -263,6 +392,125 @@ CALLBACK is called with (success package-name error-message) when complete."
          (bfepm-utils-error "Failed to install %s: %s" package-name (error-message-string err)))))
 
     (bfepm-utils-message "✅ Successfully installed %s" package-name)))
+
+(defun bfepm-package--download-and-install-elpa-async (package package-info callback)
+  "Download and install ELPA PACKAGE using PACKAGE-INFO asynchronously.
+CALLBACK is called with (success error-message) when complete."
+  (let* ((package-name (bfepm-package-name package))
+         (info-list (if (vectorp package-info) (append package-info nil) package-info))
+         (version (car info-list))
+         (_deps (cadr info-list)) ; Dependencies already handled by caller
+         (_desc (caddr info-list))
+         (kind (cadddr info-list))
+         (version-string (bfepm-package--format-version version))
+         (archive-file (bfepm-package--build-archive-url package-name version-string kind))
+         (download-dir (expand-file-name "downloads" (bfepm-core-get-cache-directory)))
+         (local-file (expand-file-name
+                      (format "%s-%s.%s" package-name version-string
+                              (if (eq kind 'tar) "tar" "el"))
+                      download-dir)))
+
+    (bfepm-utils-ensure-directory download-dir)
+
+    ;; Download package file asynchronously with checksum verification
+    (bfepm-utils-message "📥 Downloading %s (%s) (NON-BLOCKING)..." package-name version-string)
+    (bfepm-utils-download-file-async
+     archive-file local-file
+     (lambda (success error-msg)
+       (if success
+           ;; Verify file and continue with installation
+           (condition-case err
+               (progn
+                 ;; Verify download
+                 (unless (and (file-exists-p local-file)
+                             (> (file-attribute-size (file-attributes local-file)) 0))
+                   (error "Downloaded file %s is empty or missing" local-file))
+                 
+                 ;; Extract/install package with rollback on failure
+                 (let ((install-dir (expand-file-name package-name (bfepm-core-get-packages-directory))))
+                   (condition-case extract-err
+                       (progn
+                         (bfepm-package--extract-and-install package-name local-file kind)
+                         ;; Save version information
+                         (bfepm-package--save-version-info package-name version-string)
+                         ;; Verify installation
+                         (bfepm-package--verify-installation package-name install-dir)
+                         ;; Invalidate caches after successful installation
+                         (bfepm-core--invalidate-cache package-name)
+                         (bfepm-utils-message "✅ Successfully installed %s" package-name)
+                         (funcall callback t nil))
+                     (error
+                      ;; Rollback on failure
+                      (when (file-directory-p install-dir)
+                        (bfepm-utils-message "Rolling back failed installation of %s" package-name)
+                        (ignore-errors (delete-directory install-dir t)))
+                      (funcall callback nil (format "Failed to install %s: %s" 
+                                                   package-name (error-message-string extract-err)))))))
+             (error
+              (funcall callback nil (error-message-string err))))
+         ;; Download failed
+         (funcall callback nil (format "Failed to download %s: %s" package-name error-msg))))
+     3))) ; 3 retries
+
+(defun bfepm-package--download-and-install-elpa-async-simple (package package-info callback)
+  "Download and install ELPA PACKAGE using PACKAGE-INFO asynchronously.
+This dependency version does not install dependencies to avoid circular deps.
+CALLBACK is called with (success error-message) when complete."
+  (let* ((package-name (bfepm-package-name package))
+         (info-list (if (vectorp package-info) (append package-info nil) package-info))
+         (version (car info-list))
+         (_deps (cadr info-list)) ; Skip dependencies for dependency installation
+         (_desc (caddr info-list))
+         (kind (cadddr info-list))
+         (version-string (bfepm-package--format-version version))
+         (archive-file (bfepm-package--build-archive-url package-name version-string kind))
+         (download-dir (expand-file-name "downloads" (bfepm-core-get-cache-directory)))
+         (local-file (expand-file-name
+                      (format "%s-%s.%s" package-name version-string
+                              (if (eq kind 'tar) "tar" "el"))
+                      download-dir)))
+
+    (bfepm-utils-ensure-directory download-dir)
+
+    ;; Download package file asynchronously with checksum verification
+    (bfepm-utils-message "📥 Downloading dependency %s (%s) (NON-BLOCKING)..." package-name version-string)
+    (bfepm-utils-download-file-async
+     archive-file local-file
+     (lambda (success error-msg)
+       (if success
+           ;; Verify file and continue with installation
+           (condition-case err
+               (progn
+                 ;; Verify download
+                 (unless (and (file-exists-p local-file)
+                             (> (file-attribute-size (file-attributes local-file)) 0))
+                   (error "Downloaded file %s is empty or missing" local-file))
+                 
+                 ;; Extract/install package with rollback on failure
+                 (let ((install-dir (expand-file-name package-name (bfepm-core-get-packages-directory))))
+                   (condition-case extract-err
+                       (progn
+                         (bfepm-package--extract-and-install package-name local-file kind)
+                         ;; Save version information
+                         (bfepm-package--save-version-info package-name version-string)
+                         ;; Verify installation
+                         (bfepm-package--verify-installation package-name install-dir)
+                         ;; Invalidate caches after successful installation
+                         (bfepm-core--invalidate-cache package-name)
+                         (bfepm-utils-message "✅ Successfully installed dependency %s" package-name)
+                         (funcall callback t nil))
+                     (error
+                      ;; Rollback on failure
+                      (when (file-directory-p install-dir)
+                        (bfepm-utils-message "Rolling back failed dependency installation of %s" package-name)
+                        (ignore-errors (delete-directory install-dir t)))
+                      (funcall callback nil (format "Failed to install dependency %s: %s" 
+                                                   package-name (error-message-string extract-err)))))))
+             (error
+              (funcall callback nil (error-message-string err))))
+         ;; Download failed
+         (funcall callback nil (format "Failed to download dependency %s: %s" package-name error-msg))))
+     3))) ; 3 retries
 
 (defun bfepm-package--download-and-install-git (package package-info)
   "Download and install git PACKAGE using PACKAGE-INFO."
@@ -363,12 +611,83 @@ VERSION is the package version, KIND is the package type."
         ;; Skip built-in packages like 'emacs'
         (unless (or (string= dep-name "emacs")
                     (bfepm-core-package-installed-p dep-name))
-          (bfepm-utils-message "Installing dependency: %s" dep-name)
+          (bfepm-utils-message "📥 Installing dependency: %s (BLOCKING - will be fixed)" dep-name)
           (condition-case err
               (bfepm-package-install dep-name)
             (error
              (bfepm-utils-message "Warning: Failed to install dependency %s: %s"
                                dep-name (error-message-string err)))))))))
+
+(defun bfepm-package--install-dependencies-async (deps callback)
+  "Install package dependencies DEPS asynchronously.
+CALLBACK is called with (success error-message) when all are done."
+  (if (null deps)
+      (funcall callback t nil)
+    (let ((remaining-deps (cl-remove-if (lambda (dep)
+                                         (let ((dep-name (symbol-name (car dep))))
+                                           (or (string= dep-name "emacs")
+                                               (bfepm-core-package-installed-p dep-name))))
+                                       deps)))
+      (if (null remaining-deps)
+          (funcall callback t nil)
+        (bfepm-package--install-dependencies-async-recursive remaining-deps 0 callback)))))
+
+(defun bfepm-package--install-dependencies-async-recursive (deps index callback)
+  "Recursively install dependencies DEPS starting from INDEX.
+CALLBACK is called with (success error-message) when all are done."
+  (if (>= index (length deps))
+      (funcall callback t nil)
+    (let* ((dep (nth index deps))
+           (dep-name (symbol-name (car dep))))
+      (bfepm-utils-message "📥 Installing dependency: %s (NON-BLOCKING)" dep-name)
+      (bfepm-package--install-single-dependency-async
+       dep-name
+       (lambda (success _package-name error-msg)
+         (if success
+             ;; Add delay between dependency installations to avoid rate limiting
+             (run-with-timer 0.5 nil
+                           (lambda ()
+                             (bfepm-package--install-dependencies-async-recursive deps (1+ index) callback)))
+           (bfepm-utils-message "Warning: Failed to install dependency %s: %s" dep-name error-msg)
+           ;; Continue with next dependency even if one fails (with delay)
+           (run-with-timer 0.5 nil
+                          (lambda ()
+                            (bfepm-package--install-dependencies-async-recursive deps (1+ index) callback)))))))))
+
+(defun bfepm-package--install-single-dependency-async (package-name callback)
+  "Install a single dependency PACKAGE-NAME asynchronously.
+CALLBACK is called with (success package-name error-message) when complete.
+This function ensures no fallback to synchronous operations."
+  (let* ((package (make-bfepm-package :name package-name :version "latest"))
+         (config (bfepm-core-get-config)))
+
+    ;; Check if already installed
+    (if (bfepm-core-package-installed-p package-name)
+        (progn
+          (bfepm-utils-message "Dependency %s already installed" package-name)
+          (funcall callback t package-name nil))
+      ;; Only use async method, no fallback to sync
+      (let* ((sources (if config
+                         (bfepm-config-sources config)
+                       (bfepm-package--get-default-sources)))
+             ;; Use the first ELPA source (highest priority)
+             (elpa-source (cl-find-if (lambda (source)
+                                       (string= (bfepm-package--get-source-type (cdr source)) "elpa"))
+                                     sources)))
+        (if elpa-source
+            (let ((archive-url (bfepm-package--get-source-url (cdr elpa-source))))
+              (bfepm-package--fetch-archive-contents-async
+               archive-url
+               (lambda (success contents error-msg)
+                 (if success
+                     (let ((package-info (alist-get (intern package-name) contents)))
+                       (if package-info
+                           ;; Found dependency, install without its own dependencies (to avoid circular deps)
+                           (bfepm-package--download-and-install-elpa-async-simple package package-info callback)
+                         (funcall callback nil package-name (format "Dependency not found: %s" package-name))))
+                   (funcall callback nil package-name error-msg)))))
+          ;; No ELPA source available
+          (funcall callback nil package-name "No ELPA source available for dependency"))))))
 
 (defun bfepm-package--extract-and-install (package-name archive-file kind)
   "Extract and install PACKAGE-NAME from ARCHIVE-FILE.

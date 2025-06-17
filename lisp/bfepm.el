@@ -83,7 +83,7 @@ If ASYNC is non-nil, install asynchronously (non-blocking)."
       (if async
           (progn
             (message "Starting installation of %s in background..." package-spec)
-            (bfepm-package-install-async 
+            (bfepm-package-install-async
              package-spec
              (lambda (success package-name error-msg)
                (if success

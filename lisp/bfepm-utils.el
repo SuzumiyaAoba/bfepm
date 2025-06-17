@@ -142,16 +142,33 @@ MAX-RETRIES defaults to 3."
     (bfepm-utils--download-file-async-attempt url local-file callback retries attempt)))
 
 (defun bfepm-utils--download-file-async-attempt (url local-file callback retries attempt)
-  "Internal function for async download attempts."
+  "Internal function for async download attempts using `url-retrieve'.
+URL is the source to download from, LOCAL-FILE is the destination.
+CALLBACK is called when download completes or fails.
+RETRIES specifies maximum retry attempts, ATTEMPT tracks current attempt."
   (setq attempt (1+ attempt))
-  (bfepm-utils-message "Downloading from %s... (attempt %d/%d)" url attempt retries)
-  
-  (run-with-timer 
-   0.01 nil
-   (lambda ()
+  (bfepm-utils-message "📥 Starting non-blocking download from %s... (attempt %d/%d)" url attempt retries)
+  (url-retrieve
+   url
+   (lambda (status)
      (condition-case err
          (progn
-           (url-copy-file url local-file t)
+           ;; Check for errors in status
+           (when (plist-get status :error)
+             (error "Download failed: %s" (plist-get status :error)))
+           
+           ;; Move past HTTP headers to find the response body
+           (goto-char (point-min))
+           (when (re-search-forward "^$" nil t)
+             (forward-char 1))
+           
+           ;; Write response body to file
+           (let ((content (buffer-substring (point) (point-max))))
+             (with-temp-file local-file
+               (set-buffer-file-coding-system 'binary)
+               (insert content)))
+           
+           ;; Verify file was downloaded successfully
            (if (and (file-exists-p local-file)
                     (> (file-attribute-size (file-attributes local-file)) 0))
                (progn
@@ -164,8 +181,11 @@ MAX-RETRIES defaults to 3."
         (bfepm-utils-message "Download attempt %d failed: %s" attempt (error-message-string err))
         (if (< attempt retries)
             (bfepm-utils--download-file-async-attempt url local-file callback retries attempt)
-          (funcall callback nil (format "Failed to download %s after %d attempts: %s" 
-                                       url retries (error-message-string err)))))))))
+          (funcall callback nil (format "Failed to download %s after %d attempts: %s"
+                                       url retries (error-message-string err))))))
+     ;; Clean up the buffer after processing
+     (kill-buffer (current-buffer)))
+   nil t))
 
 (defun bfepm-utils-extract-tar (tar-file target-dir)
   "Extract TAR-FILE to TARGET-DIR."
