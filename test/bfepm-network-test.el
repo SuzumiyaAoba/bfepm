@@ -114,10 +114,12 @@
     (cl-letf (((symbol-function 'url-retrieve)
                (lambda (url callback &optional cbargs silent inhibit-cookies)
                  ;; Simulate successful download by calling callback directly
-                 (with-temp-buffer
-                   (insert "HTTP/1.1 200 OK\n\ntest content")
-                   (goto-char (point-min))
-                   (funcall callback nil))))
+                 (let ((temp-buffer (generate-new-buffer " *mock-download*")))
+                   (with-current-buffer temp-buffer
+                     (insert "HTTP/1.1 200 OK\n\ntest content")
+                     (goto-char (point-min))
+                     (funcall callback nil)
+                     (kill-buffer temp-buffer)))))
               ((symbol-function 'message)
                (lambda (&rest args) nil))) ; Suppress messages
       
@@ -144,11 +146,13 @@
     ;; Mock url-retrieve for archive contents
     (cl-letf (((symbol-function 'url-retrieve)
                (lambda (url callback &optional cbargs silent inhibit-cookies)
-                 (with-temp-buffer
-                   (insert "HTTP/1.1 200 OK\n\n")
-                   (prin1 mock-contents (current-buffer))
-                   (goto-char (point-min))
-                   (funcall callback nil))))
+                 (let ((temp-buffer (generate-new-buffer " *mock-archive*")))
+                   (with-current-buffer temp-buffer
+                     (insert "HTTP/1.1 200 OK\n\n")
+                     (prin1 mock-contents (current-buffer))
+                     (goto-char (point-min))
+                     (funcall callback nil)
+                     (kill-buffer temp-buffer)))))
               ((symbol-function 'message)
                (lambda (&rest args) nil))) ; Suppress messages
       
@@ -172,10 +176,12 @@
     ;; Mock url-retrieve for HTTP GET
     (cl-letf (((symbol-function 'url-retrieve)
                (lambda (url callback &optional cbargs silent inhibit-cookies)
-                 (with-temp-buffer
-                   (insert "HTTP/1.1 200 OK\n\n" mock-response)
-                   (goto-char (point-min))
-                   (funcall callback nil))))
+                 (let ((temp-buffer (generate-new-buffer " *mock-http-get*")))
+                   (with-current-buffer temp-buffer
+                     (insert "HTTP/1.1 200 OK\n\n" mock-response)
+                     (goto-char (point-min))
+                     (funcall callback nil)
+                     (kill-buffer temp-buffer)))))
               ((symbol-function 'message)
                (lambda (&rest args) nil))) ; Suppress messages
       
@@ -198,10 +204,16 @@
         (test-url "https://httpbin.org/status/404")
         (callback-results nil))
     
-    ;; Mock url-retrieve to simulate network error
+    ;; Mock url-retrieve to simulate network error  
     (cl-letf (((symbol-function 'url-retrieve)
                (lambda (url callback &optional cbargs silent inhibit-cookies)
-                 (funcall callback '(:error (error . "404 Not Found")))))
+                 ;; Simulate the callback being called with error status
+                 (let ((temp-buffer (generate-new-buffer " *mock-url-retrieve*")))
+                   (with-current-buffer temp-buffer
+                     (insert "HTTP/1.1 404 Not Found\n\nNot Found")
+                     (goto-char (point-min))
+                     (funcall callback '(:error (error . "404 Not Found")))
+                     (kill-buffer temp-buffer)))))
               ((symbol-function 'message)
                (lambda (&rest args) nil))) ; Suppress messages
       
@@ -231,14 +243,20 @@
     (cl-letf (((symbol-function 'url-retrieve)
                (lambda (url callback &optional cbargs silent inhibit-cookies)
                  (setq attempt-count (1+ attempt-count))
-                 (if (< attempt-count 3)
-                     ;; Fail first 2 attempts
-                     (funcall callback '(:error (error . "Server Error")))
-                   ;; Succeed on 3rd attempt
-                   (with-temp-buffer
-                     (insert "HTTP/1.1 200 OK\n\nretry success")
-                     (goto-char (point-min))
-                     (funcall callback nil)))))
+                 (let ((temp-buffer (generate-new-buffer " *mock-retry-test*")))
+                   (with-current-buffer temp-buffer
+                     (if (< attempt-count 3)
+                         ;; Fail first 2 attempts
+                         (progn
+                           (insert "HTTP/1.1 500 Server Error\n\nServer Error")
+                           (goto-char (point-min))
+                           (funcall callback '(:error (error . "Server Error"))))
+                       ;; Succeed on 3rd attempt
+                       (progn
+                         (insert "HTTP/1.1 200 OK\n\nretry success")
+                         (goto-char (point-min))
+                         (funcall callback nil)))
+                     (kill-buffer temp-buffer)))))
               ((symbol-function 'message)
                (lambda (&rest args) nil))) ; Suppress messages
       
@@ -263,14 +281,15 @@
 (ert-deftest bfepm-network-connectivity-test ()
   "Test network connectivity check."
   ;; This test requires actual network access
-  ;; Skip if we're in a restricted environment
-  (when (and (not (getenv "CI")) ; Skip in CI
-             (not (getenv "BFEPM_OFFLINE"))) ; Skip if offline flag set
-    
-    ;; Test with a very short timeout to avoid hanging
-    (let ((connected (bfepm-network-check-connectivity 2)))
-      ;; We can't guarantee network access, so just verify the function returns a boolean
-      (should (or (eq connected t) (eq connected nil))))))
+  ;; Skip if we're in a restricted environment or CI
+  (skip-unless (and (not (getenv "CI"))           ; Skip in CI
+                    (not (getenv "GITHUB_ACTIONS")) ; Skip in GitHub Actions
+                    (not (getenv "BFEPM_OFFLINE")))) ; Skip if offline flag set
+  
+  ;; Test with a very short timeout to avoid hanging
+  (let ((connected (bfepm-network-check-connectivity 2)))
+    ;; We can't guarantee network access, so just verify the function returns a boolean
+    (should (or (eq connected t) (eq connected nil)))))
 
 ;;; Performance Tests
 
