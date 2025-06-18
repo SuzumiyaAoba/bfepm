@@ -6,10 +6,35 @@
 ;; functionality for BFEPM. It handles both semantic versions and
 ;; MELPA date-based versions with support for caret (^) and tilde (~)
 ;; constraint operators.
+;;
+;; Key Features:
+;; - Semantic version comparison (e.g., "1.2.3")
+;; - MELPA date version support (e.g., "20250618.1234")
+;; - Constraint satisfaction with operators:
+;;   - "latest" - matches any version
+;;   - "^1.2.3" - compatible versions (same major)
+;;   - "~1.2.3" - patch-level changes only
+;; - Best version matching from multiple candidates
+;; - Robust error handling and validation
+;;
+;; Version Format Support:
+;; - Semantic: "MAJOR.MINOR.PATCH" (e.g., "1.2.3")
+;; - MELPA Date: "YYYYMMDD.HHMM" (e.g., "20250618.1234")
+;; - Mixed comparisons between different formats
 
 ;;; Code:
 
 (require 'cl-lib)
+
+;; Constants for version pattern matching
+(defconst bfepm-version--melpa-date-pattern "^[0-9]\\{8\\}\\.[0-9]\\{4\\}$"
+  "Pattern for MELPA date versions (YYYYMMDD.HHMM format).")
+
+(defconst bfepm-version--date-prefix-pattern "^[0-9]\\{4,8\\}$"
+  "Pattern for date prefix requirements (YYYY to YYYYMMDD).")
+
+(defconst bfepm-version--year-length 4
+  "Length of year component in date versions.")
 
 (defun bfepm-version-compare (v1 v2)
   "Compare version strings V1 and V2.
@@ -60,54 +85,76 @@ Returns t if VERSION satisfies REQUIREMENT, nil otherwise."
 
 (defun bfepm-version--is-melpa-date-version-p (version)
   "Check if VERSION is a MELPA date version (YYYYMMDD.HHMM format)."
-  (string-match-p "^[0-9]\\{8\\}\\.[0-9]\\{4\\}$" version))
+  (string-match-p bfepm-version--melpa-date-pattern version))
 
 (defun bfepm-version--satisfies-caret-p (version requirement)
   "Check if VERSION satisfies caret REQUIREMENT (^).
 Caret constraints allow compatible changes within the same major version."
   (if (bfepm-version--is-melpa-date-version-p version)
-      ;; MELPA date version handling (YYYYMMDD.HHMM)
-      (if (bfepm-version--is-melpa-date-version-p requirement)
-          ;; Both are MELPA date versions - same year
-          (let ((ver-date (car (split-string version "\\.")))
-                (req-date (car (split-string requirement "\\."))))
-            (and (>= (bfepm-version-compare version requirement) 0)
-                 (string= (substring ver-date 0 4) (substring req-date 0 4))))
-        ;; Version is MELPA date but requirement is not - assume requirement is date prefix
-        (let ((ver-date (car (split-string version "\\."))))
-          (unless (string-match-p "^[0-9]\\{4,8\\}$" requirement)
-            (error "Invalid date prefix requirement: %s" requirement))
-          (and (>= (string-to-number ver-date) (string-to-number requirement))
-               (string= (substring ver-date 0 4) (substring requirement 0 4)))))
-    ;; Standard semantic version handling
-    (let ((req-parts (mapcar #'string-to-number (split-string requirement "\\.")))
-          (ver-parts (mapcar #'string-to-number (split-string version "\\."))))
-      (and (>= (bfepm-version-compare version requirement) 0)
-           (< (car ver-parts) (1+ (car req-parts)))))))
+      (bfepm-version--satisfies-caret-melpa-p version requirement)
+    (bfepm-version--satisfies-caret-semantic-p version requirement)))
+
+(defun bfepm-version--satisfies-caret-melpa-p (version requirement)
+  "Check if MELPA date VERSION satisfies caret REQUIREMENT (^).
+For MELPA date versions, caret allows any version within the same year.
+Supports YYYYMMDD.HHMM format or date prefix."
+  (if (bfepm-version--is-melpa-date-version-p requirement)
+      ;; Both are MELPA date versions - same year
+      (let ((ver-date (car (split-string version "\\.")))
+            (req-date (car (split-string requirement "\\."))))
+        (and (>= (bfepm-version-compare version requirement) 0)
+             (string= (substring ver-date 0 bfepm-version--year-length) 
+                      (substring req-date 0 bfepm-version--year-length))))
+    ;; Version is MELPA date but requirement is not - assume requirement is date prefix
+    (let ((ver-date (car (split-string version "\\."))))
+      (unless (string-match-p bfepm-version--date-prefix-pattern requirement)
+        (error "[BFEPM Version] Invalid date prefix requirement: %s" requirement))
+      (and (>= (string-to-number ver-date) (string-to-number requirement))
+           (string= (substring ver-date 0 bfepm-version--year-length) 
+                    (substring requirement 0 bfepm-version--year-length))))))
+
+(defun bfepm-version--satisfies-caret-semantic-p (version requirement)
+  "Check if semantic VERSION satisfies caret REQUIREMENT (^).
+For semantic versions, caret allows compatible changes within same major.
+VERSION must be >= REQUIREMENT and < next major version."
+  (let ((req-parts (mapcar #'string-to-number (split-string requirement "\\.")))
+        (ver-parts (mapcar #'string-to-number (split-string version "\\."))))
+    (and (>= (bfepm-version-compare version requirement) 0)
+         (< (car ver-parts) (1+ (car req-parts))))))
 
 (defun bfepm-version--satisfies-tilde-p (version requirement)
   "Check if VERSION satisfies tilde REQUIREMENT (~).
 Tilde constraints allow patch-level changes only."
   (if (bfepm-version--is-melpa-date-version-p version)
-      ;; MELPA date version handling - same day
-      (if (bfepm-version--is-melpa-date-version-p requirement)
-          ;; Both are MELPA date versions - same day
-          (let ((ver-date (car (split-string version "\\.")))
-                (req-date (car (split-string requirement "\\."))))
-            (and (>= (bfepm-version-compare version requirement) 0)
-                 (string= ver-date req-date)))
-        ;; Version is MELPA date but requirement is not - check day prefix match
-        (let ((ver-date (car (split-string version "\\."))))
-          (unless (string-match-p "^[0-9]\\{4,8\\}$" requirement)
-            (error "Invalid date prefix requirement: %s" requirement))
-          (and (>= (string-to-number ver-date) (string-to-number requirement))
-               (string-prefix-p requirement ver-date))))
-    ;; Standard semantic version handling
-    (let ((req-parts (mapcar #'string-to-number (split-string requirement "\\.")))
-          (ver-parts (mapcar #'string-to-number (split-string version "\\."))))
-      (and (>= (bfepm-version-compare version requirement) 0)
-           (= (car ver-parts) (car req-parts))
-           (= (cadr ver-parts) (cadr req-parts))))))
+      (bfepm-version--satisfies-tilde-melpa-p version requirement)
+    (bfepm-version--satisfies-tilde-semantic-p version requirement)))
+
+(defun bfepm-version--satisfies-tilde-melpa-p (version requirement)
+  "Check if MELPA date VERSION satisfies tilde REQUIREMENT (~).
+For MELPA date versions, tilde allows versions within same day/prefix.
+This provides more restrictive matching than caret constraints."
+  (if (bfepm-version--is-melpa-date-version-p requirement)
+      ;; Both are MELPA date versions - same day
+      (let ((ver-date (car (split-string version "\\.")))
+            (req-date (car (split-string requirement "\\."))))
+        (and (>= (bfepm-version-compare version requirement) 0)
+             (string= ver-date req-date)))
+    ;; Version is MELPA date but requirement is not - check day prefix match
+    (let ((ver-date (car (split-string version "\\."))))
+      (unless (string-match-p bfepm-version--date-prefix-pattern requirement)
+        (error "[BFEPM Version] Invalid date prefix requirement: %s" requirement))
+      (and (>= (string-to-number ver-date) (string-to-number requirement))
+           (string-prefix-p requirement ver-date)))))
+
+(defun bfepm-version--satisfies-tilde-semantic-p (version requirement)
+  "Check if semantic VERSION satisfies tilde REQUIREMENT (~).
+For semantic versions, tilde allows patch-level changes only.
+VERSION must be >= REQUIREMENT with same major.minor versions."
+  (let ((req-parts (mapcar #'string-to-number (split-string requirement "\\.")))
+        (ver-parts (mapcar #'string-to-number (split-string version "\\."))))
+    (and (>= (bfepm-version-compare version requirement) 0)
+         (= (car ver-parts) (car req-parts))
+         (= (cadr ver-parts) (cadr req-parts)))))
 
 (defun bfepm-version-normalize (version)
   "Normalize VERSION string to a consistent format.

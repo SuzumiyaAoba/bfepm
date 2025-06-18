@@ -343,8 +343,8 @@
     ;; Should complete quickly even with many components
     (should (stringp (apply #'bfepm-network-build-url base-url components)))
     (let ((elapsed (- (float-time) start-time)))
-      ;; Should complete in less than 0.1 seconds
-      (should (< elapsed 0.1)))))
+      ;; Should complete in less than the performance threshold
+      (should (< elapsed bfepm-network--performance-test-threshold)))))
 
 
 (provide 'bfepm-network-test)
