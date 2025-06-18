@@ -12,6 +12,9 @@
 (require 'bfepm-utils)
 (require 'bfepm-git)
 
+;; Forward declaration for config functions
+(declare-function bfepm-config-get-package "bfepm-config")
+
 ;; Try to load bfepm-config, fall back to minimal if not available
 (condition-case nil
     (require 'bfepm-config)
@@ -152,15 +155,30 @@ CALLBACK is called with (success package-name error-message) when complete."
           (when callback (funcall callback t package-name nil)))
       ;; Use async archive fetching for truly non-blocking operation
       (bfepm-utils-message "🔄 Starting truly async installation of %s" package-name)
+      ;; First check if this is a git package from config
       (let* ((config (bfepm-core-get-config))
-             (sources (if config
-                         (bfepm-config-sources config)
-                       (bfepm-package--get-default-sources)))
-             ;; Use the first ELPA source (highest priority)
-             (elpa-source (cl-find-if (lambda (source)
-                                       (string= (bfepm-package--get-source-type (cdr source)) "elpa"))
-                                     sources)))
-        (if elpa-source
+             (config-package (when config (bfepm-config-get-package config package-name))))
+        (if (and config-package (bfepm-package-source config-package))
+            ;; This is a git package from config - install it directly async
+            (progn
+              (bfepm-utils-message "Installing git package %s from configuration" package-name)
+              (run-with-timer 0.01 nil
+                              (lambda ()
+                                (condition-case err
+                                    (progn
+                                      (bfepm-package-install package-spec)
+                                      (when callback (funcall callback t package-name nil)))
+                                  (error 
+                                   (when callback (funcall callback nil package-name (error-message-string err))))))))
+          ;; Not a git package - use ELPA sources
+          (let* ((sources (if config
+                             (bfepm-config-sources config)
+                           (bfepm-package--get-default-sources)))
+                 ;; Use the first ELPA source (highest priority)
+                 (elpa-source (cl-find-if (lambda (source)
+                                           (string= (bfepm-package--get-source-type (cdr source)) "elpa"))
+                                         sources)))
+            (if elpa-source
             (let ((archive-url (bfepm-package--get-source-url (cdr elpa-source))))
               (bfepm-package--fetch-archive-contents-async
                archive-url
@@ -193,10 +211,15 @@ CALLBACK is called with (success package-name error-message) when complete."
                                      (funcall callback nil package-name error-msg))))))
                          (funcall callback nil package-name (format "Package not found: %s" package-name))))
                    (funcall callback nil package-name error-msg)))))
-          ;; Fallback to sync method
-          (run-with-timer 0.01 nil
-                          (lambda ()
-                            (bfepm-package-install package-spec callback))))))))
+              ;; Fallback to sync method
+              (run-with-timer 0.01 nil
+                              (lambda ()
+                                (condition-case err
+                                    (progn
+                                      (bfepm-package-install package-spec)
+                                      (when callback (funcall callback t package-name nil)))
+                                  (error 
+                                   (when callback (funcall callback nil package-name (error-message-string err))))))))))))))
 
 (defun bfepm-package--find-package (package config)
   "Find PACKAGE in available sources from CONFIG."
