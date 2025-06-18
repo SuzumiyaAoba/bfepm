@@ -10,6 +10,16 @@
 
 (require 'url)
 
+;; Constants for network operations
+(defconst bfepm-network--default-max-retries 3
+  "Default maximum number of retry attempts for network operations.")
+
+(defconst bfepm-network--default-connectivity-timeout 5
+  "Default timeout in seconds for connectivity checks.")
+
+(defconst bfepm-network--performance-test-threshold 0.1
+  "Maximum acceptable time in seconds for performance tests.")
+
 (defvar bfepm-network--last-request-time nil
   "Time of last network request for rate limiting.")
 
@@ -35,7 +45,7 @@ This is a synchronous operation that blocks until completion."
 (defun bfepm-network-download-file (url local-file &optional max-retries)
   "Download file from URL to LOCAL-FILE with retry logic.
 MAX-RETRIES defaults to 3. This is a synchronous operation."
-  (let ((retries (or max-retries 3))
+  (let ((retries (or max-retries bfepm-network--default-max-retries))
         (attempt 0)
         (success nil))
     (bfepm-network--ensure-directory (file-name-directory local-file))
@@ -60,7 +70,7 @@ MAX-RETRIES defaults to 3. This is a synchronous operation."
   "Download file from URL to LOCAL-FILE asynchronously.
 CALLBACK is called with (success error-message) when complete.
 MAX-RETRIES defaults to 3."
-  (let ((retries (or max-retries 3))
+  (let ((retries (or max-retries bfepm-network--default-max-retries))
         (attempt 0))
     ;; Ensure parent directory exists
     (bfepm-network--ensure-directory (file-name-directory local-file))
@@ -240,7 +250,7 @@ Properly handles URL path joining and encoding."
 (defun bfepm-network-check-connectivity (&optional timeout)
   "Check network connectivity by making a request to a known endpoint.
 TIMEOUT defaults to 5 seconds. Returns t if connected, nil otherwise."
-  (let ((timeout-seconds (or timeout 5))
+  (let ((timeout-seconds (or timeout bfepm-network--default-connectivity-timeout))
         (test-url bfepm-network-connectivity-test-url)
         (connected nil))
     
