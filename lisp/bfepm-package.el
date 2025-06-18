@@ -11,6 +11,8 @@
 (require 'bfepm-core)
 (require 'bfepm-utils)
 (require 'bfepm-git)
+(require 'bfepm-version)
+(require 'bfepm-network)
 
 ;; Forward declaration for config functions
 (declare-function bfepm-config-get-package "bfepm-config")
@@ -67,30 +69,16 @@
    (t nil)))
 
 (defun bfepm-package--format-version (version)
-  "Format VERSION from various formats to string."
-  (cond
-   ((stringp version) version)
-   ((numberp version) (number-to-string version))
-   ((listp version)
-    ;; Handle list format like (20250426 1319)
-    (cond
-     ((= (length version) 1) (number-to-string (car version)))
-     ((= (length version) 2) (format "%s.%s" (car version) (cadr version)))
-     (t (mapconcat #'number-to-string version "."))))
-   (t "unknown")))
+  "Format VERSION from various formats to string.
+
+This function is deprecated. Use `bfepm-version-normalize' instead."
+  (bfepm-version-normalize version))
 
 (defun bfepm-package--version-matches-p (available-version requested-version)
-  "Check if AVAILABLE-VERSION satisfies REQUESTED-VERSION."
-  (cond
-   ((string= requested-version "latest") t)
-   ((string= available-version requested-version) t)
-   ((string-prefix-p "^" requested-version)
-    ;; Compatible version (e.g., ^1.2.3)
-    (bfepm-utils-version-satisfies-p available-version requested-version))
-   ((string-prefix-p "~" requested-version)
-    ;; Patch level (e.g., ~1.2.3)
-    (bfepm-utils-version-satisfies-p available-version requested-version))
-   (t nil)))
+  "Check if AVAILABLE-VERSION satisfies REQUESTED-VERSION.
+
+This function is deprecated. Use `bfepm-version-satisfies-p' instead."
+  (bfepm-version-satisfies-p available-version requested-version))
 
 (defun bfepm-package-install (package-spec &optional callback)
   "Install package specified by PACKAGE-SPEC.
@@ -294,51 +282,12 @@ CALLBACK is called with (success package-name error-message) when complete."
                          archive-file (error-message-string err))))))
 
 (defun bfepm-package--fetch-archive-contents-async (archive-url callback)
-  "Fetch archive contents from ARCHIVE-URL asynchronously with rate limiting.
-CALLBACK is called with (success contents error-message) when complete."
-  (let ((archive-file (concat archive-url "archive-contents"))
-        (current-time (float-time)))
-    
-    ;; Check if we need to delay the request due to rate limiting
-    (if (and bfepm-package--last-archive-fetch-time
-             (< (- current-time bfepm-package--last-archive-fetch-time) 
-                bfepm-package--archive-fetch-delay))
-        ;; Wait before making the request
-        (let ((delay (- bfepm-package--archive-fetch-delay 
-                       (- current-time bfepm-package--last-archive-fetch-time))))
-          (bfepm-utils-message "⏱️ Rate limiting: waiting %.1fs before fetching archive contents" delay)
-          (run-with-timer delay nil
-                         (lambda ()
-                           (bfepm-package--fetch-archive-contents-async archive-url callback))))
-      ;; Make the request immediately
-      (progn
-        (setq bfepm-package--last-archive-fetch-time current-time)
-        (bfepm-utils-message "🔍 Fetching archive contents from %s (NON-BLOCKING)" archive-file)
-        (url-retrieve
-         archive-file
-         (lambda (status)
-           (condition-case err
-               (progn
-                 ;; Check for errors in status
-                 (when (plist-get status :error)
-                   (error "Archive fetch failed: %s" (plist-get status :error)))
-                 
-                 ;; Move past HTTP headers to find the response body
-                 (goto-char (point-min))
-                 (when (re-search-forward "^$" nil t)
-                   (forward-char 1))
-                 
-                 ;; Parse the archive contents
-                 (let ((contents (read (current-buffer))))
-                   (bfepm-utils-message "Successfully fetched archive contents from %s" archive-file)
-                   (funcall callback t contents nil)))
-             (error
-              (bfepm-utils-message "Failed to fetch archive contents from %s: %s"
-                                 archive-file (error-message-string err))
-              (funcall callback nil nil (error-message-string err))))
-           ;; Clean up the buffer after processing
-           (kill-buffer (current-buffer)))
-         nil t)))))
+  "Fetch archive contents from ARCHIVE-URL asynchronously.
+CALLBACK is called with (success contents error-message) when complete.
+
+This function is deprecated. Use `bfepm-network-fetch-archive-contents-async'."
+  (bfepm-network-fetch-archive-contents-async 
+   archive-url callback bfepm-package--archive-fetch-delay))
 
 (defun bfepm-package--download-and-install (package package-info)
   "Download and install PACKAGE using PACKAGE-INFO."
