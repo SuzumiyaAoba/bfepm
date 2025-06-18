@@ -80,6 +80,47 @@
     ;; Restore original value
     (bfepm-network-set-rate-limit original-delay)))
 
+(ert-deftest bfepm-network-rate-limit-behavior-test ()
+  "Test actual rate limiting delay between requests."
+  (let ((original-delay (bfepm-network-get-rate-limit))
+        (callback-results nil)
+        (start-time (float-time)))
+    
+    ;; Set a short delay for testing
+    (bfepm-network-set-rate-limit 0.1)
+    (bfepm-network-reset-rate-limit)
+    
+    ;; Mock url-retrieve to avoid actual network calls
+    (cl-letf (((symbol-function 'url-retrieve)
+               (lambda (url callback &optional cbargs silent inhibit-cookies)
+                 (let ((temp-buffer (generate-new-buffer " *mock-rate-limit*")))
+                   (with-current-buffer temp-buffer
+                     (insert "HTTP/1.1 200 OK\n\ntest")
+                     (goto-char (point-min))
+                     (funcall callback nil)
+                     (kill-buffer temp-buffer))))))
+      
+      ;; First request should execute immediately
+      (bfepm-network-fetch-archive-contents-async
+       "https://example.com/packages/"
+       (lambda (success contents error-msg)
+         (setq callback-results (list (float-time) success))))
+      
+      ;; Second request should be delayed
+      (let ((second-start (float-time)))
+        (bfepm-network-fetch-archive-contents-async
+         "https://example.com/packages/"
+         (lambda (success contents error-msg)
+           (let ((elapsed (- (float-time) second-start)))
+             ;; Should have been delayed by at least the rate limit
+             (should (>= elapsed 0.05))))) ; Allow some tolerance
+        
+        ;; Wait for async operations to complete
+        (sleep-for 0.2)))
+    
+    ;; Restore original settings
+    (bfepm-network-set-rate-limit original-delay)))
+
 ;;; Mock Network Operations Tests
 
 (ert-deftest bfepm-network-download-file-sync-mock-test ()

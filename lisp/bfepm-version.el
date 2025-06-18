@@ -9,6 +9,8 @@
 
 ;;; Code:
 
+(require 'cl-lib)
+
 (defun bfepm-version-compare (v1 v2)
   "Compare version strings V1 and V2.
 Return 1 if V1 > V2, -1 if V1 < V2, 0 if equal.
@@ -42,10 +44,10 @@ Supports both semantic versions (e.g., '1.2.3') and MELPA date versions
   "Check if VERSION satisfies REQUIREMENT.
 
 REQUIREMENT can be:
-- 'latest' - matches any version
-- Exact version string (e.g., '1.2.3')
-- Caret constraint (e.g., '^1.2.3') - compatible version
-- Tilde constraint (e.g., '~1.2.3') - patch level changes only
+- \\='latest\\=' - matches any version
+- Exact version string (e.g., \\='1.2.3\\=')
+- Caret constraint (e.g., \\='^1.2.3\\=') - compatible version
+- Tilde constraint (e.g., \\='~1.2.3\\=') - patch level changes only
 
 Returns t if VERSION satisfies REQUIREMENT, nil otherwise."
   (cond
@@ -124,7 +126,7 @@ Handles various version formats and returns a canonical string representation."
 (defun bfepm-version-parse-constraint (constraint)
   "Parse a version CONSTRAINT string into its operator and version parts.
 Returns a list (OPERATOR VERSION) where OPERATOR is one of:
-'exact, 'caret, 'tilde, or 'latest."
+\\='exact, \\='caret, \\='tilde, or \\='latest."
   (cond
    ((string= constraint "latest") '(latest nil))
    ((string-prefix-p "^" constraint) `(caret ,(substring constraint 1)))
@@ -144,10 +146,10 @@ CONSTRAINT should be the result of `bfepm-version-parse-constraint'."
       (_ nil))))
 
 (defun bfepm-version-find-best-match (available-versions constraints)
-  "Find the best version from AVAILABLE-VERSIONS that satisfies all CONSTRAINTS.
+  "Find the best version from AVAILABLE-VERSIONS that satisfies CONSTRAINTS.
 AVAILABLE-VERSIONS is a list of version strings.
 CONSTRAINTS is a list of constraint strings.
-Returns the highest version that satisfies all constraints, or nil if none match."
+Returns the highest version that satisfies all constraints, or nil if none."
   (let ((matching-versions
          (cl-remove-if-not
           (lambda (version)

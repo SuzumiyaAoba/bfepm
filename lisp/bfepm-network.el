@@ -207,15 +207,18 @@ Returns the normalized URL or signals an error."
     (error "[BFEPM Network] URL cannot be empty"))
   
   ;; Upgrade HTTP to HTTPS if needed
-  (when (string-prefix-p "http://" url)
-    (setq url (replace-regexp-in-string "^http://" "https://" url))
-    (message "[BFEPM Network] Upgraded HTTP to HTTPS: %s" url))
-  
-  ;; Validate HTTPS URLs
-  (unless (string-prefix-p "https://" url)
-    (error "[BFEPM Network] Only HTTPS URLs are supported: %s" url))
-  
-  url)
+  (let ((normalized-url 
+         (if (string-prefix-p "http://" url)
+             (progn
+               (message "[BFEPM Network] Upgraded HTTP to HTTPS")
+               (replace-regexp-in-string "^http://" "https://" url))
+           url)))
+    
+    ;; Validate HTTPS URLs
+    (unless (string-prefix-p "https://" normalized-url)
+      (error "[BFEPM Network] Only HTTPS URLs are supported: %s" normalized-url))
+    
+    normalized-url))
 
 (defun bfepm-network-build-url (base-url &rest path-components)
   "Build a URL from BASE-URL and PATH-COMPONENTS.

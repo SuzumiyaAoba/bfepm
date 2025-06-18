@@ -1,6 +1,12 @@
 EMACS ?= emacs
 KEG ?= keg
 
+# Source files for compilation
+CORE_SOURCES := lisp/bfepm.el lisp/bfepm-core.el lisp/bfepm-config.el \
+		lisp/bfepm-config-minimal.el lisp/bfepm-utils.el \
+		lisp/bfepm-package.el lisp/bfepm-lock.el \
+		lisp/bfepm-version.el lisp/bfepm-network.el
+
 .PHONY: all test clean install install-ci build build-ci lint compile check check-ci package-lint checkdoc test-coverage help
 
 all: build
@@ -46,10 +52,7 @@ build:
 	# Compile most files with strict warnings
 	$(EMACS) -batch -L lisp \
 		--eval "(setq byte-compile-error-on-warn t)" \
-		-f batch-byte-compile \
-		lisp/bfepm.el lisp/bfepm-core.el lisp/bfepm-config.el \
-		lisp/bfepm-config-minimal.el lisp/bfepm-utils.el \
-		lisp/bfepm-package.el lisp/bfepm-lock.el
+		-f batch-byte-compile $(CORE_SOURCES)
 	# Compile UI file with warnings but no errors (due to forward references)
 	$(EMACS) -batch -L lisp \
 		-f batch-byte-compile lisp/bfepm-ui.el
@@ -108,11 +111,7 @@ compile:
 	# Compile most files with strict warnings
 	$(EMACS) -batch -L lisp \
 		--eval "(setq byte-compile-error-on-warn t)" \
-		-f batch-byte-compile \
-		lisp/bfepm.el lisp/bfepm-core.el lisp/bfepm-config.el \
-		lisp/bfepm-config-minimal.el lisp/bfepm-utils.el \
-		lisp/bfepm-package.el lisp/bfepm-lock.el \
-		lisp/bfepm-version.el lisp/bfepm-network.el
+		-f batch-byte-compile $(CORE_SOURCES)
 	# Compile UI file with warnings but no errors (due to forward references)
 	$(EMACS) -batch -L lisp \
 		-f batch-byte-compile lisp/bfepm-ui.el
