@@ -64,6 +64,8 @@ test: build
 		-l test/bfepm-utils-test.el \
 		-l test/bfepm-ui-test-simple.el \
 		-l test/bfepm-async-test.el \
+		-l test/bfepm-version-test.el \
+		-l test/bfepm-network-test.el \
 		-f ert-run-tests-batch-and-exit
 
 # Clean compiled files
@@ -94,14 +96,16 @@ checkdoc:
 		--eval "(checkdoc-file \"lisp/bfepm-config-minimal.el\")" \
 		--eval "(checkdoc-file \"lisp/bfepm-utils.el\")" \
 		--eval "(checkdoc-file \"lisp/bfepm-package.el\")" \
-		--eval "(checkdoc-file \"lisp/bfepm-lock.el\")"
+		--eval "(checkdoc-file \"lisp/bfepm-lock.el\")" \
+		--eval "(checkdoc-file \"lisp/bfepm-version.el\")" \
+		--eval "(checkdoc-file \"lisp/bfepm-network.el\")"
 
 # Byte compile all files
 compile:
 	# Compile most files with strict warnings
 	$(EMACS) -batch -L lisp \
 		--eval "(setq byte-compile-error-on-warn t)" \
-		-f batch-byte-compile lisp/bfepm.el lisp/bfepm-core.el lisp/bfepm-config.el lisp/bfepm-config-minimal.el lisp/bfepm-utils.el lisp/bfepm-package.el lisp/bfepm-lock.el
+		-f batch-byte-compile lisp/bfepm.el lisp/bfepm-core.el lisp/bfepm-config.el lisp/bfepm-config-minimal.el lisp/bfepm-utils.el lisp/bfepm-package.el lisp/bfepm-lock.el lisp/bfepm-version.el lisp/bfepm-network.el
 	# Compile UI file with warnings but no errors (due to forward references)
 	$(EMACS) -batch -L lisp \
 		-f batch-byte-compile lisp/bfepm-ui.el
@@ -124,6 +128,8 @@ test-coverage:
 		-l test/bfepm-config-test.el \
 		-l test/bfepm-utils-test.el \
 		-l test/bfepm-ui-test-simple.el \
+		-l test/bfepm-version-test.el \
+		-l test/bfepm-network-test.el \
 		-f ert-run-tests-batch-and-exit
 	@echo "Generating coverage report..."
 	$(EMACS) -batch -Q \

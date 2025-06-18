@@ -8,6 +8,8 @@
 
 (require 'url)
 (require 'json)
+(require 'bfepm-version)
+(require 'bfepm-network)
 
 (defun bfepm-utils-message (format-string &rest args)
   "Display a formatted message with BFEPM prefix.
@@ -21,88 +23,20 @@ FORMAT-STRING is the format string, ARGS are the arguments."
 
 (defun bfepm-utils-version-compare (v1 v2)
   "Compare version strings V1 and V2.
-Return 1 if V1 > V2, -1 if V1 < V2, 0 if equal."
-  (if (and (bfepm-utils--is-melpa-date-version-p v1)
-           (bfepm-utils--is-melpa-date-version-p v2))
-      ;; Both are MELPA date versions
-      (let ((num1 (string-to-number (replace-regexp-in-string "\\." "" v1)))
-            (num2 (string-to-number (replace-regexp-in-string "\\." "" v2))))
-        (cond ((> num1 num2) 1)
-              ((< num1 num2) -1)
-              (t 0)))
-    ;; Standard semantic version handling
-    (let ((parts1 (mapcar #'string-to-number (split-string v1 "\\.")))
-          (parts2 (mapcar #'string-to-number (split-string v2 "\\."))))
-      (bfepm-utils--version-compare-parts parts1 parts2))))
+Return 1 if V1 > V2, -1 if V1 < V2, 0 if equal.
 
-(defun bfepm-utils--version-compare-parts (parts1 parts2)
-  "Compare version parts lists PARTS1 and PARTS2."
-  (cond
-   ((and (null parts1) (null parts2)) 0)
-   ((null parts1) -1)
-   ((null parts2) 1)
-   ((> (car parts1) (car parts2)) 1)
-   ((< (car parts1) (car parts2)) -1)
-   (t (bfepm-utils--version-compare-parts (cdr parts1) (cdr parts2)))))
+This function is deprecated. Use `bfepm-version-compare' instead."
+  (bfepm-version-compare v1 v2))
+
 
 (defun bfepm-utils-version-satisfies-p (version requirement)
-  "Check if VERSION satisfies REQUIREMENT."
-  (cond
-   ((string= requirement "latest") t)
-   ((string-prefix-p "^" requirement)
-    (bfepm-utils--version-satisfies-caret-p version (substring requirement 1)))
-   ((string-prefix-p "~" requirement)
-    (bfepm-utils--version-satisfies-tilde-p version (substring requirement 1)))
-   (t (string= version requirement))))
+  "Check if VERSION satisfies REQUIREMENT.
 
-(defun bfepm-utils--is-melpa-date-version-p (version)
-  "Check if VERSION is a MELPA date version (YYYYMMDD.HHMM format)."
-  (string-match-p "^[0-9]\\{8\\}\\.[0-9]\\{4\\}$" version))
+This function is deprecated. Use `bfepm-version-satisfies-p' instead."
+  (bfepm-version-satisfies-p version requirement))
 
-(defun bfepm-utils--version-satisfies-caret-p (version requirement)
-  "Check if VERSION satisfies caret REQUIREMENT."
-  (if (bfepm-utils--is-melpa-date-version-p version)
-      ;; MELPA date version handling (YYYYMMDD.HHMM)
-      (if (bfepm-utils--is-melpa-date-version-p requirement)
-          ;; Both are MELPA date versions - same year
-          (let ((ver-date (car (split-string version "\\.")))
-                (req-date (car (split-string requirement "\\."))))
-            (and (>= (bfepm-utils-version-compare version requirement) 0)
-                 (string= (substring ver-date 0 4) (substring req-date 0 4))))
-        ;; Version is MELPA date but requirement is not - assume requirement is date prefix
-        (let ((ver-date (car (split-string version "\\."))))
-          (unless (string-match-p "^[0-9]\\{4,8\\}$" requirement)
-            (error "Invalid date prefix requirement: %s" requirement))
-          (and (>= (string-to-number ver-date) (string-to-number requirement))
-               (string= (substring ver-date 0 4) (substring requirement 0 4)))))
-    ;; Standard semantic version handling
-    (let ((req-parts (mapcar #'string-to-number (split-string requirement "\\.")))
-          (ver-parts (mapcar #'string-to-number (split-string version "\\."))))
-      (and (>= (bfepm-utils-version-compare version requirement) 0)
-           (< (car ver-parts) (1+ (car req-parts)))))))
 
-(defun bfepm-utils--version-satisfies-tilde-p (version requirement)
-  "Check if VERSION satisfies tilde REQUIREMENT."
-  (if (bfepm-utils--is-melpa-date-version-p version)
-      ;; MELPA date version handling - same day
-      (if (bfepm-utils--is-melpa-date-version-p requirement)
-          ;; Both are MELPA date versions - same day
-          (let ((ver-date (car (split-string version "\\.")))
-                (req-date (car (split-string requirement "\\."))))
-            (and (>= (bfepm-utils-version-compare version requirement) 0)
-                 (string= ver-date req-date)))
-        ;; Version is MELPA date but requirement is not - check day prefix match
-        (let ((ver-date (car (split-string version "\\."))))
-          (unless (string-match-p "^[0-9]\\{4,8\\}$" requirement)
-            (error "Invalid date prefix requirement: %s" requirement))
-          (and (>= (string-to-number ver-date) (string-to-number requirement))
-               (string-prefix-p requirement ver-date))))
-    ;; Standard semantic version handling
-    (let ((req-parts (mapcar #'string-to-number (split-string requirement "\\.")))
-          (ver-parts (mapcar #'string-to-number (split-string version "\\."))))
-      (and (>= (bfepm-utils-version-compare version requirement) 0)
-           (= (car ver-parts) (car req-parts))
-           (= (cadr ver-parts) (cadr req-parts))))))
+
 
 (defun bfepm-utils-ensure-directory (dir)
   "Ensure directory DIR exists, creating it if necessary."
@@ -111,81 +45,19 @@ Return 1 if V1 > V2, -1 if V1 < V2, 0 if equal."
 
 (defun bfepm-utils-download-file (url local-file &optional max-retries)
   "Download file from URL to LOCAL-FILE with retry logic.
-MAX-RETRIES defaults to 3."
-  (let ((retries (or max-retries 3))
-        (attempt 0)
-        (success nil))
-    (while (and (< attempt retries) (not success))
-      (setq attempt (1+ attempt))
-      (bfepm-utils-message "Downloading from %s... (attempt %d/%d)" url attempt retries)
-      (condition-case err
-          (progn
-            (url-copy-file url local-file t)
-            (when (file-exists-p local-file)
-              (bfepm-utils-message "Downloaded to %s" local-file)
-              (setq success t)))
-        (error
-         (bfepm-utils-message "Download attempt %d failed: %s" attempt (error-message-string err))
-         (when (= attempt retries)
-           (bfepm-utils-error "Failed to download %s after %d attempts: %s"
-                             url retries (error-message-string err))))))
-    success))
+MAX-RETRIES defaults to 3.
+
+This function is deprecated. Use `bfepm-network-download-file' instead."
+  (bfepm-network-download-file url local-file max-retries))
 
 (defun bfepm-utils-download-file-async (url local-file callback &optional max-retries)
   "Download file from URL to LOCAL-FILE asynchronously.
 CALLBACK is called with (success error-message) when complete.
-MAX-RETRIES defaults to 3."
-  (let ((retries (or max-retries 3))
-        (attempt 0))
-    ;; Ensure parent directory exists
-    (bfepm-utils-ensure-directory (file-name-directory local-file))
-    (bfepm-utils--download-file-async-attempt url local-file callback retries attempt)))
+MAX-RETRIES defaults to 3.
 
-(defun bfepm-utils--download-file-async-attempt (url local-file callback retries attempt)
-  "Internal function for async download attempts using `url-retrieve'.
-URL is the source to download from, LOCAL-FILE is the destination.
-CALLBACK is called when download completes or fails.
-RETRIES specifies maximum retry attempts, ATTEMPT tracks current attempt."
-  (setq attempt (1+ attempt))
-  (bfepm-utils-message "📥 Starting non-blocking download from %s... (attempt %d/%d)" url attempt retries)
-  (url-retrieve
-   url
-   (lambda (status)
-     (condition-case err
-         (progn
-           ;; Check for errors in status
-           (when (plist-get status :error)
-             (error "Download failed: %s" (plist-get status :error)))
-           
-           ;; Move past HTTP headers to find the response body
-           (goto-char (point-min))
-           (when (re-search-forward "^$" nil t)
-             (forward-char 1))
-           
-           ;; Write response body to file
-           (let ((content (buffer-substring (point) (point-max))))
-             (with-temp-file local-file
-               (set-buffer-file-coding-system 'binary)
-               (insert content)))
-           
-           ;; Verify file was downloaded successfully
-           (if (and (file-exists-p local-file)
-                    (> (file-attribute-size (file-attributes local-file)) 0))
-               (progn
-                 (bfepm-utils-message "Downloaded to %s" local-file)
-                 (funcall callback t nil))
-             (if (< attempt retries)
-                 (bfepm-utils--download-file-async-attempt url local-file callback retries attempt)
-               (funcall callback nil (format "Failed to download %s after %d attempts" url retries)))))
-       (error
-        (bfepm-utils-message "Download attempt %d failed: %s" attempt (error-message-string err))
-        (if (< attempt retries)
-            (bfepm-utils--download-file-async-attempt url local-file callback retries attempt)
-          (funcall callback nil (format "Failed to download %s after %d attempts: %s"
-                                       url retries (error-message-string err))))))
-     ;; Clean up the buffer after processing
-     (kill-buffer (current-buffer)))
-   nil t))
+This function is deprecated. Use `bfepm-network-download-file-async' instead."
+  (bfepm-network-download-file-async url local-file callback max-retries))
+
 
 (defun bfepm-utils-extract-tar (tar-file target-dir)
   "Extract TAR-FILE to TARGET-DIR."
@@ -215,14 +87,10 @@ Returns t if checksum matches, nil otherwise."
       (string= (downcase actual-checksum) (downcase expected-checksum)))))
 
 (defun bfepm-utils-http-get (url)
-  "Make HTTP GET request to URL and return response body."
-  (with-temp-buffer
-    (condition-case err
-        (progn
-          (url-insert-file-contents url)
-          (buffer-string))
-      (error
-       (bfepm-utils-error "HTTP GET failed for %s: %s" url (error-message-string err))))))
+  "Make HTTP GET request to URL and return response body.
+
+This function is deprecated. Use `bfepm-network-http-get' instead."
+  (bfepm-network-http-get url))
 
 (defun bfepm-utils-git-clone (url target-dir &optional ref shallow)
   "Clone git repository from URL to TARGET-DIR.
