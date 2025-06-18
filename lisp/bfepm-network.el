@@ -16,6 +16,11 @@
 (defvar bfepm-network--request-delay 0.5
   "Minimum delay in seconds between network requests.")
 
+(defcustom bfepm-network-connectivity-test-url "https://httpbin.org/status/200"
+  "URL used to test network connectivity."
+  :type 'string
+  :group 'bfepm)
+
 (defun bfepm-network-http-get (url)
   "Make HTTP GET request to URL and return response body.
 This is a synchronous operation that blocks until completion."
@@ -198,7 +203,7 @@ Returns the normalized URL or signals an error."
   (unless (stringp url)
     (error "[BFEPM Network] URL must be a string"))
   
-  (when (string-empty-p url)
+  (when (string= url "")
     (error "[BFEPM Network] URL cannot be empty"))
   
   ;; Upgrade HTTP to HTTPS if needed
@@ -222,7 +227,7 @@ Properly handles URL path joining and encoding."
     
     ;; Add path components
     (dolist (component path-components)
-      (when (and component (not (string-empty-p component)))
+      (when (and component (not (string= component "")))
         ;; URL encode the component
         (let ((encoded-component (url-hexify-string (format "%s" component))))
           (setq url (concat url "/" encoded-component)))))
@@ -233,7 +238,7 @@ Properly handles URL path joining and encoding."
   "Check network connectivity by making a request to a known endpoint.
 TIMEOUT defaults to 5 seconds. Returns t if connected, nil otherwise."
   (let ((timeout-seconds (or timeout 5))
-        (test-url "https://httpbin.org/status/200")
+        (test-url bfepm-network-connectivity-test-url)
         (connected nil))
     
     (condition-case nil

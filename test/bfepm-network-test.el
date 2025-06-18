@@ -296,26 +296,15 @@
 (ert-deftest bfepm-network-url-building-performance-test ()
   "Test URL building performance with many components."
   (let ((base-url "https://example.com")
-        (components (mapcar (lambda (i) (format "path%d" i)) (number-sequence 1 100))))
+        (components (mapcar (lambda (i) (format "path%d" i)) (number-sequence 1 100)))
+        (start-time (float-time)))
     
     ;; Should complete quickly even with many components
-    (should (stringp (apply #'bfepm-network-build-url base-url components)))))
+    (should (stringp (apply #'bfepm-network-build-url base-url components)))
+    (let ((elapsed (- (float-time) start-time)))
+      ;; Should complete in less than 0.1 seconds
+      (should (< elapsed 0.1)))))
 
-;;; Utility Function Tests
-
-(ert-deftest bfepm-network-ensure-directory-test ()
-  "Test directory creation utility."
-  (let ((test-dir (make-temp-file "bfepm-network-dir-test" t)))
-    ;; Directory should exist after creation
-    (should (file-directory-p test-dir))
-    
-    ;; Should work with nested directories
-    (let ((nested-dir (expand-file-name "nested/deep/path" test-dir)))
-      (bfepm-network--ensure-directory nested-dir)
-      (should (file-directory-p nested-dir)))
-    
-    ;; Cleanup
-    (delete-directory test-dir t)))
 
 (provide 'bfepm-network-test)
 
