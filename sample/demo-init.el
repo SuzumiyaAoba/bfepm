@@ -249,7 +249,17 @@ Returns a string describing the git package specification."
     (progn
       ;; Set up BFEPM variables for demo (using temporary directory)
       (setq bfepm-demo-temp-dir (make-temp-file "bfepm-demo-" t))
-      (setq bfepm-config-file (expand-file-name "sample/bfepm.toml"))
+      ;; Look for config file in current directory first, then try sample/
+      (setq bfepm-config-file 
+            (cond 
+             ;; First check current directory for bfepm.toml
+             ((file-exists-p (expand-file-name "bfepm.toml"))
+              (expand-file-name "bfepm.toml"))
+             ;; Then check sample/bfepm.toml in current directory
+             ((file-exists-p (expand-file-name "sample/bfepm.toml"))
+              (expand-file-name "sample/bfepm.toml"))
+             ;; Use sample/bfepm.toml as default (will be copied by demo.sh)
+             (t (expand-file-name "sample/bfepm.toml"))))
       (setq bfepm-directory bfepm-demo-temp-dir)
       (message "[BFEPM Demo] Configuration file set to: %s" bfepm-config-file)
       (message "[BFEPM Demo] Demo BFEPM directory set to: %s" bfepm-directory)

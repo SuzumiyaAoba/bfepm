@@ -92,11 +92,64 @@
   "Load BFEPM configuration from file."
   (condition-case err
       (if (and (boundp 'bfepm-config-file) (file-exists-p bfepm-config-file))
-          (if (or (featurep 'bfepm-config) (featurep 'bfepm-config-minimal))
-              (setq bfepm--config (bfepm-config-load bfepm-config-file))
-            (progn
-              (message "Warning: Cannot load config file %s (bfepm-config module not available)" bfepm-config-file)
-              (setq bfepm--config nil)))
+          (cond
+           ;; Prefer minimal config when TOML is not available
+           ((and (featurep 'bfepm-config-minimal) 
+                 (not (and (featurep 'bfepm-config) 
+                          (boundp 'bfepm-config--toml-available) 
+                          bfepm-config--toml-available)))
+            (let ((config (bfepm-config-create-default))
+                  (packages '()))
+              ;; Use minimal config parsing logic directly
+              (with-temp-buffer
+                (insert-file-contents bfepm-config-file)
+                (goto-char (point-min))
+                (while (re-search-forward "^\\([a-zA-Z0-9_-]+\\)\\s-*=\\s-*{\\s-*git\\s-*=\\s-*\"\\([^\"]+\\)\"\\(.*\\)}" nil t)
+                  (let* ((package-name (match-string 1))
+                         (git-url (match-string 2))
+                         (rest (match-string 3))
+                         (branch nil)
+                         (tag nil)
+                         (ref nil))
+                    ;; Parse branch, tag, ref
+                    (when (string-match "branch\\s-*=\\s-*\"\\([^\"]+\\)\"" rest)
+                      (setq branch (match-string 1 rest)))
+                    (when (string-match "tag\\s-*=\\s-*\"\\([^\"]+\\)\"" rest)
+                      (setq tag (match-string 1 rest)))
+                    (when (string-match "ref\\s-*=\\s-*\"\\([^\"]+\\)\"" rest)
+                      (setq ref (match-string 1 rest)))
+                    
+                    ;; Create git source
+                    (let ((git-source (list :url git-url :type "git")))
+                      (when branch (setq git-source (plist-put git-source :ref branch)))
+                      (when tag (setq git-source (plist-put git-source :ref tag)))
+                      (when ref (setq git-source (plist-put git-source :ref ref)))
+                      
+                      ;; Create package entry
+                      (push (make-bfepm-package
+                             :name package-name
+                             :version (or branch tag ref "latest")
+                             :source git-source
+                             :status 'required)
+                            packages)))))
+              
+              ;; Update config with parsed packages
+              (setf (bfepm-config-packages config) packages)
+              (setq bfepm--config config)))
+           ;; Use full config when TOML is available
+           ((and (featurep 'bfepm-config) 
+                 (boundp 'bfepm-config--toml-available) 
+                 bfepm-config--toml-available)
+            (setq bfepm--config (bfepm-config-load bfepm-config-file)))
+           ;; Fall back to minimal config
+           ((featurep 'bfepm-config-minimal)
+            (setq bfepm--config (bfepm-config-load bfepm-config-file)))
+           ;; Try any available config module
+           ((or (featurep 'bfepm-config) (featurep 'bfepm-config-minimal))
+            (setq bfepm--config (bfepm-config-load bfepm-config-file)))
+           (t
+            (message "Warning: Cannot load config file %s (bfepm-config module not available)" bfepm-config-file)
+            (setq bfepm--config nil)))
         (if (or (featurep 'bfepm-config) (featurep 'bfepm-config-minimal))
             (progn
               (setq bfepm--config (bfepm-config-create-default))

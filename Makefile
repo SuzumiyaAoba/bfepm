@@ -63,6 +63,7 @@ test: build
 		-l test/bfepm-config-test.el \
 		-l test/bfepm-utils-test.el \
 		-l test/bfepm-ui-test-simple.el \
+		-l test/bfepm-async-test.el \
 		-f ert-run-tests-batch-and-exit
 
 # Clean compiled files

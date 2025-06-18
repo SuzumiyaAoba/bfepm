@@ -61,6 +61,7 @@
 ;; Declare external functions to avoid compilation warnings
 (declare-function bfepm-package-list "bfepm-package")
 (declare-function bfepm-package-install "bfepm-package")
+(declare-function bfepm-package-install-async "bfepm-package")
 (declare-function bfepm-package-update "bfepm-package")
 (declare-function bfepm-package-update-all "bfepm-package")
 (declare-function bfepm-package-remove "bfepm-package")
@@ -74,12 +75,28 @@
   :group 'bfepm)
 
 ;;;###autoload
-(defun bfepm-install (package-spec)
-  "Install a package specified by PACKAGE-SPEC."
-  (interactive "sPackage: ")
+(defun bfepm-install (package-spec &optional async)
+  "Install a package specified by PACKAGE-SPEC.
+If ASYNC is non-nil, install asynchronously (non-blocking)."
+  (interactive "sPackage: \nP")
   (if bfepm--package-available
-      (bfepm-package-install package-spec)
+      (if async
+          (progn
+            (message "Starting installation of %s in background..." package-spec)
+            (bfepm-package-install-async
+             package-spec
+             (lambda (success package-name error-msg)
+               (if success
+                   (message "✓ Successfully installed %s" package-name)
+                 (message "✗ Failed to install %s: %s" package-name error-msg)))))
+        (bfepm-package-install package-spec))
     (message "Package installation not available (bfepm-package module not loaded)")))
+
+;;;###autoload
+(defun bfepm-install-async (package-spec)
+  "Install a package specified by PACKAGE-SPEC asynchronously (non-blocking)."
+  (interactive "sPackage: ")
+  (bfepm-install package-spec t))
 
 ;;;###autoload
 (defun bfepm-remove (package-name)

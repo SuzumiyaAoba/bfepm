@@ -19,6 +19,8 @@ cp ./lisp/*.el "$DEMO_DIR/" 2>/dev/null || true
 mkdir -p "$DEMO_DIR/sample"
 cp ./sample/*.toml "$DEMO_DIR/sample/" 2>/dev/null || true
 cp ./sample/demo-init.el "$DEMO_DIR/sample/" 2>/dev/null || true
+# Also copy main config to root for easier access
+cp ./sample/bfepm.toml "$DEMO_DIR/bfepm.toml" 2>/dev/null || true
 
 echo ""
 echo "✅ Demo environment created at: $DEMO_DIR"
