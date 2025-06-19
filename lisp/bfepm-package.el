@@ -677,15 +677,28 @@ KIND specifies the package type (tar or single file)."
     (add-to-list 'load-path install-dir)))
 
 (defun bfepm-package--extract-tar-package (tar-file install-dir)
-  "Extract TAR-FILE to INSTALL-DIR with error checking."
+  "Extract TAR-FILE to INSTALL-DIR with improved compression detection."
   (let ((default-directory install-dir))
     (bfepm-utils-message "📦 Extracting package to %s..." install-dir)
-    (let ((result (call-process "tar" nil nil nil "-xf" tar-file "--strip-components=1")))
+    
+    ;; Detect compression format and use appropriate tar flags
+    (let* ((tar-flags (cond
+                       ((or (string-suffix-p ".tar.gz" tar-file)
+                            (string-suffix-p ".tgz" tar-file)) "-xzf")
+                       ((string-suffix-p ".tar.bz2" tar-file) "-xjf")
+                       ((string-suffix-p ".tar.xz" tar-file) "-xJf")
+                       ((string-suffix-p ".tar.lz" tar-file) "--lzip -xf")
+                       (t "-xf")))
+           (result (call-process "tar" nil nil nil tar-flags tar-file "--strip-components=1")))
+      
       (unless (= result 0)
         (bfepm-utils-error "Failed to extract tar file %s (exit code: %d)" tar-file result))
+      
       ;; Verify extraction succeeded
-      (unless (> (length (directory-files install-dir nil "^[^.]")) 0)
-        (bfepm-utils-error "Tar extraction failed: no files found in %s" install-dir)))))
+      (let ((extracted-files (directory-files install-dir nil "^[^.]")))
+        (unless (> (length extracted-files) 0)
+          (bfepm-utils-error "Tar extraction failed: no files found in %s" install-dir))
+        (bfepm-utils-message "✅ Extracted %d files to %s" (length extracted-files) install-dir)))))
 
 (defun bfepm-package--install-single-file (el-file install-dir)
   "Install single EL-FILE to INSTALL-DIR with verification."
@@ -703,6 +716,53 @@ KIND specifies the package type (tar or single file)."
     (when (file-directory-p package-dir)
       (with-temp-file version-file
         (insert (format "%s\n" version))))))
+
+(defun bfepm-package--parse-metadata (package-name install-dir)
+  "Parse basic metadata for PACKAGE-NAME in INSTALL-DIR."
+  (let ((main-file (expand-file-name (format "%s.el" package-name) install-dir))
+        (metadata-file (expand-file-name ".bfepm-metadata" install-dir))
+        (metadata (list)))
+    
+    ;; Parse main package file if it exists
+    (when (file-exists-p main-file)
+      (condition-case err
+          (with-temp-buffer
+            (insert-file-contents main-file nil 0 4096) ; Read first 4KB for headers
+            (goto-char (point-min))
+            
+            ;; Extract Package-Requires (parse as Lisp data structure)
+            (when (re-search-forward "^[[:space:];]*Package-Requires:[[:space:]]*\\(.+\\)$" nil t)
+              (condition-case parse-err
+                  (let* ((requires-str (match-string 1))
+                         (requires (ignore-errors (read requires-str))))
+                    (setq metadata (cons (cons 'requires requires) metadata)))
+                (error
+                 (bfepm-utils-message "Warning: Failed to parse Package-Requires for %s: %s"
+                                    package-name (error-message-string parse-err)))))
+            
+            ;; Extract Version
+            (goto-char (point-min))
+            (when (re-search-forward "^[[:space:];]*Version:[[:space:]]*\\(.+\\)$" nil t)
+              (setq metadata (cons (cons 'version (string-trim (match-string 1))) metadata)))
+            
+            ;; Extract Keywords
+            (goto-char (point-min))
+            (when (re-search-forward "^[[:space:];]*Keywords:[[:space:]]*\\(.+\\)$" nil t)
+              (setq metadata (cons (cons 'keywords (string-trim (match-string 1))) metadata))))
+        (error
+         (bfepm-utils-message "Warning: Failed to parse metadata for %s: %s"
+                            package-name (error-message-string err)))))
+    
+    ;; Cache metadata to file for quick access (only if non-empty)
+    (when metadata
+      (condition-case err
+          (with-temp-file metadata-file
+            (prin1 metadata (current-buffer)))
+        (error
+         (bfepm-utils-message "Warning: Failed to cache metadata for %s: %s"
+                            package-name (error-message-string err)))))
+    
+    metadata))
 
 (defun bfepm-package-remove (package-name)
   "Remove installed package PACKAGE-NAME."
@@ -790,6 +850,9 @@ KIND specifies the package type (tar or single file)."
         (unless (cl-some (lambda (file) (string-match-p package-name file)) el-files)
           (bfepm-utils-message "Warning: Main package file %s not found, but other .el files exist" main-file))))
 
+    ;; Parse and cache package metadata
+    (bfepm-package--parse-metadata package-name install-dir)
+    
     (bfepm-utils-message "Installation verified: %d .el files found in %s"
                         (length el-files) install-dir)))
 
