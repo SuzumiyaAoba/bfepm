@@ -681,13 +681,14 @@ KIND specifies the package type (tar or single file)."
   (let ((default-directory install-dir))
     (bfepm-utils-message "📦 Extracting package to %s..." install-dir)
     
-    ;; Detect compression and use appropriate tar flags
-    (let* ((compressed-p (or (string-suffix-p ".tar.gz" tar-file)
-                             (string-suffix-p ".tgz" tar-file)
-                             (string-suffix-p ".tar.bz2" tar-file)
-                             (string-suffix-p ".tar.xz" tar-file)
-                             (string-suffix-p ".tar.lz" tar-file)))
-           (tar-flags (if compressed-p "-xzf" "-xf"))
+    ;; Detect compression format and use appropriate tar flags
+    (let* ((tar-flags (cond
+                       ((or (string-suffix-p ".tar.gz" tar-file)
+                            (string-suffix-p ".tgz" tar-file)) "-xzf")
+                       ((string-suffix-p ".tar.bz2" tar-file) "-xjf")
+                       ((string-suffix-p ".tar.xz" tar-file) "-xJf")
+                       ((string-suffix-p ".tar.lz" tar-file) "--lzip -xf")
+                       (t "-xf")))
            (result (call-process "tar" nil nil nil tar-flags tar-file "--strip-components=1")))
       
       (unless (= result 0)
@@ -729,35 +730,37 @@ KIND specifies the package type (tar or single file)."
             (insert-file-contents main-file nil 0 4096) ; Read first 4KB for headers
             (goto-char (point-min))
             
-            ;; Extract Package-Requires
-            (when (re-search-forward "^;;[[:space:]]*Package-Requires:[[:space:]]*\\(.+\\)$" nil t)
+            ;; Extract Package-Requires (parse as Lisp data structure)
+            (when (re-search-forward "^[[:space:];]*Package-Requires:[[:space:]]*\\(.+\\)$" nil t)
               (condition-case parse-err
-                  (let ((requires-str (match-string 1)))
-                    (setq metadata (cons (cons 'requires requires-str) metadata)))
+                  (let* ((requires-str (match-string 1))
+                         (requires (ignore-errors (read requires-str))))
+                    (setq metadata (cons (cons 'requires requires) metadata)))
                 (error
                  (bfepm-utils-message "Warning: Failed to parse Package-Requires for %s: %s"
                                     package-name (error-message-string parse-err)))))
             
             ;; Extract Version
             (goto-char (point-min))
-            (when (re-search-forward "^;;[[:space:]]*Version:[[:space:]]*\\(.+\\)$" nil t)
+            (when (re-search-forward "^[[:space:];]*Version:[[:space:]]*\\(.+\\)$" nil t)
               (setq metadata (cons (cons 'version (string-trim (match-string 1))) metadata)))
             
             ;; Extract Keywords
             (goto-char (point-min))
-            (when (re-search-forward "^;;[[:space:]]*Keywords:[[:space:]]*\\(.+\\)$" nil t)
+            (when (re-search-forward "^[[:space:];]*Keywords:[[:space:]]*\\(.+\\)$" nil t)
               (setq metadata (cons (cons 'keywords (string-trim (match-string 1))) metadata))))
         (error
          (bfepm-utils-message "Warning: Failed to parse metadata for %s: %s"
                             package-name (error-message-string err)))))
     
-    ;; Cache metadata to file for quick access
-    (condition-case err
-        (with-temp-file metadata-file
-          (prin1 metadata (current-buffer)))
-      (error
-       (bfepm-utils-message "Warning: Failed to cache metadata for %s: %s"
-                          package-name (error-message-string err))))
+    ;; Cache metadata to file for quick access (only if non-empty)
+    (when metadata
+      (condition-case err
+          (with-temp-file metadata-file
+            (prin1 metadata (current-buffer)))
+        (error
+         (bfepm-utils-message "Warning: Failed to cache metadata for %s: %s"
+                            package-name (error-message-string err)))))
     
     metadata))
 
