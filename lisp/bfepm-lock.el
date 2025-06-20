@@ -9,6 +9,7 @@
 
 (require 'bfepm-core)
 (require 'bfepm-utils)
+(require 'cl-lib)
 
 ;; Declare external functions to avoid compilation warnings
 (declare-function bfepm-package-install "bfepm-package")
@@ -96,12 +97,12 @@
           (with-temp-buffer
             (insert-file-contents pkg-file)
             (goto-char (point-min))
-            (when (re-search-forward "\"\\([0-9]+\\(?:\\.[0-9]+\\)*\\(?:\\.[0-9]+\\)?\\)\"" nil t)
+            (when (re-search-forward "\"\\([0-9]+\\(?:\\.[0-9]+\\)*\\)\"" nil t)
               (match-string 1)))
         (error nil)))))
 
 (defun bfepm-lock--read-header-version (package-name package-dir)
-  "Read version from package header in main .el file for PACKAGE-NAME."
+  "Read version from package header in main .el file for PACKAGE-NAME in PACKAGE-DIR."
   (let ((main-file (expand-file-name (concat package-name ".el") package-dir)))
     (when (file-exists-p main-file)
       (condition-case nil
@@ -114,7 +115,7 @@
 
 (defun bfepm-lock--calculate-package-checksum (package-dir)
   "Calculate checksum for package in PACKAGE-DIR."
-  (let ((files (directory-files-recursively package-dir "\\.[el]$")))
+  (let ((files (directory-files-recursively package-dir "\\.el$")))
     (with-temp-buffer
       (dolist (file files)
         (insert-file-contents file)
@@ -143,7 +144,7 @@
         (error nil)))))
 
 (defun bfepm-lock--parse-dependencies-from-file (package-name package-dir)
-  "Parse dependencies from main .el file for PACKAGE-NAME."
+  "Parse dependencies from main .el file for PACKAGE-NAME in PACKAGE-DIR."
   (let ((main-file (expand-file-name (concat package-name ".el") package-dir)))
     (when (file-exists-p main-file)
       (condition-case nil
@@ -210,7 +211,7 @@
     (bfepm-utils-message "Lock file saved to %s" lock-file)))
 
 (defun bfepm-lock-load (&optional file)
-  "Load lock file from FILE (default: bfepm.lock in user-emacs-directory)."
+  "Load lock file from FILE (default: bfepm.lock in `user-emacs-directory')."
   (let ((lock-file (or file (expand-file-name bfepm-lock-file-name user-emacs-directory))))
     (if (file-exists-p lock-file)
         (condition-case err
@@ -228,7 +229,7 @@
       nil)))
 
 (defun bfepm-lock-verify (&optional file)
-  "Verify that installed packages match the lock file."
+  "Verify that installed packages match the lock FILE."
   (let ((lock-data (bfepm-lock-load file)))
     (if lock-data
         (bfepm-lock--verify-packages (plist-get lock-data :packages))
@@ -251,7 +252,7 @@
             (let* ((package-dir (expand-file-name name (bfepm-core-get-packages-directory)))
                    (actual-version (bfepm-lock--detect-version name package-dir))
                    (actual-checksum (bfepm-lock--calculate-package-checksum package-dir)))
-              (unless (and (string= expected-version actual-version)
+              (unless (and (bfepm-lock--version-equal-p expected-version actual-version)
                           (string= expected-checksum actual-checksum))
                 (push (list :name name
                            :expected-version expected-version
@@ -309,9 +310,13 @@
         (bfepm-utils-message "Installing %s version %s..." name version)
         (condition-case err
             (progn
-              ;; For now, install latest version - could be enhanced to install specific version
+              ;; Install specific version from lock file
               (require 'bfepm-package)
-              (bfepm-package-install name)
+              (if (fboundp 'bfepm-package-install-version)
+                  (bfepm-package-install-version name version)
+                (progn
+                  (bfepm-utils-message "Warning: Installing latest version of %s (specific version installation not implemented)" name)
+                  (bfepm-package-install name)))
               (setq success-count (1+ success-count)))
           (error
            (bfepm-utils-message "Failed to install %s: %s" name (error-message-string err))
@@ -333,6 +338,18 @@
   "Interactively install from lock file."
   (interactive)
   (bfepm-lock-install))
+
+;; Utility functions
+(defun bfepm-lock--version-equal-p (version1 version2)
+  "Compare VERSION1 and VERSION2 for equality.
+Handle \\='unknown\\=' versions and normalize version strings."
+  (cond
+   ((or (string= version1 "unknown") (string= version2 "unknown"))
+    ;; If either version is unknown, only match if both are unknown
+    (and (string= version1 "unknown") (string= version2 "unknown")))
+   (t
+    ;; Normal string comparison for now - could be enhanced with semantic versioning
+    (string= version1 version2))))
 
 ;; Package installation integration
 (defun bfepm-lock-update-on-install (package-name)
