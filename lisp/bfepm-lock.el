@@ -102,7 +102,7 @@
         (error nil)))))
 
 (defun bfepm-lock--read-header-version (package-name package-dir)
-  "Read version from package header in main .el file for PACKAGE-NAME in PACKAGE-DIR."
+  "Read version from package header in PACKAGE-NAME.el in PACKAGE-DIR."
   (let ((main-file (expand-file-name (concat package-name ".el") package-dir)))
     (when (file-exists-p main-file)
       (condition-case nil
