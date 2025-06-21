@@ -74,10 +74,14 @@
 (defun bfepm-ui-refresh-buffer (&optional _ignore-auto _noconfirm)
   "Refresh the BFEPM package list buffer."
   (interactive)
-  (if (eq bfepm-ui-current-view 'installed)
-      (bfepm-ui-update-package-list)
-    (bfepm-ui-update-available-package-list))
-  (tabulated-list-print t))
+  (condition-case err
+      (progn
+        (if (eq bfepm-ui-current-view 'installed)
+            (bfepm-ui-update-package-list)
+          (bfepm-ui-update-available-package-list))
+        (tabulated-list-print t))
+    (error
+     (message "BFEPM UI refresh buffer error: %s" (error-message-string err)))))
 
 (defun bfepm-ui-update-package-list ()
   "Update the tabulated list with current package information."
@@ -340,7 +344,13 @@
              (progn
                (message "✓ Successfully installed %s - refreshing package list" package-name)
                ;; Refresh UI asynchronously to avoid blocking
-               (run-with-timer 0.1 nil #'bfepm-ui-refresh))
+               (run-with-timer 0.1 nil 
+                              (lambda () 
+                                (when (get-buffer "*BFEPM*")
+                                  (with-current-buffer "*BFEPM*"
+                                    (when (eq major-mode 'bfepm-ui-mode)
+                (when (eq major-mode 'bfepm-ui-mode)
+            (bfepm-ui-refresh))))))))
            (message "✗ Failed to install %s: %s" package-name error-msg)))))))
 
 (defun bfepm-ui-remove-package ()
@@ -352,7 +362,9 @@
         (condition-case err
             (progn
               (bfepm-package-remove package-name)
-              (bfepm-ui-refresh))
+              (when (eq major-mode 'bfepm-ui-mode)
+                (when (eq major-mode 'bfepm-ui-mode)
+            (bfepm-ui-refresh))))
           (error
            (message "Failed to remove %s: %s" package-name (error-message-string err))))))))
 
@@ -364,7 +376,8 @@
       (condition-case err
           (progn
             (bfepm-package-update package-name)
-            (bfepm-ui-refresh))
+            (when (eq major-mode 'bfepm-ui-mode)
+            (bfepm-ui-refresh)))
         (error
          (message "Failed to update %s: %s" package-name (error-message-string err)))))))
 
@@ -375,14 +388,20 @@
     (condition-case err
         (progn
           (bfepm-package-update-all)
-          (bfepm-ui-refresh))
+          (when (eq major-mode 'bfepm-ui-mode)
+            (bfepm-ui-refresh)))
       (error
        (message "Failed to update packages: %s" (error-message-string err))))))
 
 (defun bfepm-ui-refresh ()
   "Refresh the package list."
   (interactive)
-  (revert-buffer))
+  (condition-case err
+      (when (and (buffer-live-p (current-buffer))
+                 (eq major-mode 'bfepm-ui-mode))
+        (revert-buffer))
+    (error
+     (message "BFEPM UI refresh error: %s" (error-message-string err)))))
 
 (defun bfepm-ui-help ()
   "Show help for BFEPM UI commands."
@@ -549,7 +568,8 @@
                (bfepm-utils-message "Failed to install %s: %s" 
                                    package-name (error-message-string err)))))
           (bfepm-ui-unmark-all)
-          (bfepm-ui-refresh)
+          (when (eq major-mode 'bfepm-ui-mode)
+            (bfepm-ui-refresh))
           (if failed-packages
               (message "Batch installation completed with %d failures. Check *Messages* for details." 
                       (length failed-packages))
@@ -582,7 +602,8 @@
                (bfepm-utils-message "Failed to remove %s: %s" 
                                    package-name (error-message-string err)))))
           (bfepm-ui-unmark-all)
-          (bfepm-ui-refresh)
+          (when (eq major-mode 'bfepm-ui-mode)
+            (bfepm-ui-refresh))
           (if failed-packages
               (message "Batch removal completed with %d failures. Check *Messages* for details." 
                       (length failed-packages))
