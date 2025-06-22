@@ -885,15 +885,6 @@ PACKAGE-NAME, VERSION, and KIND are used for checksum verification."
 
   t)
 
-(defun bfepm-package-extract-tar (tar-file target-dir)
-  "Extract TAR-FILE to TARGET-DIR."
-  (bfepm-utils-message "Extracting %s..." tar-file)
-  (let ((default-directory target-dir))
-    (with-temp-buffer
-      (call-process "tar" nil t nil "-xf" tar-file)
-      (when (> (buffer-size) 0)
-        (bfepm-utils-message "Extraction output: %s" (buffer-string))))))
-
 (provide 'bfepm-package)
 
 ;;; bfepm-package.el ends here
