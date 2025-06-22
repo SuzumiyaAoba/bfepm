@@ -9,69 +9,6 @@
 (require 'ert)
 (require 'bfepm-utils)
 
-;;; Version Comparison Tests
-
-(ert-deftest bfepm-utils-version-compare-equal ()
-  "Test version comparison for equal versions."
-  (should (= (bfepm-utils-version-compare "1.0.0" "1.0.0") 0))
-  (should (= (bfepm-utils-version-compare "2.3.4" "2.3.4") 0)))
-
-(ert-deftest bfepm-utils-version-compare-greater ()
-  "Test version comparison for greater version."
-  (should (> (bfepm-utils-version-compare "1.1.0" "1.0.0") 0))
-  (should (> (bfepm-utils-version-compare "2.0.0" "1.9.9") 0))
-  (should (> (bfepm-utils-version-compare "1.0.1" "1.0.0") 0)))
-
-(ert-deftest bfepm-utils-version-compare-lesser ()
-  "Test version comparison for lesser version."
-  (should (< (bfepm-utils-version-compare "1.0.0" "1.1.0") 0))
-  (should (< (bfepm-utils-version-compare "1.9.9" "2.0.0") 0))
-  (should (< (bfepm-utils-version-compare "1.0.0" "1.0.1") 0)))
-
-(ert-deftest bfepm-utils-version-compare-date-versions ()
-  "Test version comparison for MELPA date-based versions."
-  (should (> (bfepm-utils-version-compare "20250602.1300" "20250601.1200") 0))
-  (should (< (bfepm-utils-version-compare "20250601.1200" "20250602.1300") 0))
-  (should (= (bfepm-utils-version-compare "20250601.1200" "20250601.1200") 0)))
-
-;;; Version Satisfaction Tests
-
-(ert-deftest bfepm-utils-version-satisfies-p-exact ()
-  "Test exact version satisfaction."
-  (should (bfepm-utils-version-satisfies-p "1.0.0" "1.0.0"))
-  (should-not (bfepm-utils-version-satisfies-p "1.0.1" "1.0.0")))
-
-(ert-deftest bfepm-utils-version-satisfies-p-latest ()
-  "Test latest version satisfaction."
-  (should (bfepm-utils-version-satisfies-p "1.0.0" "latest"))
-  (should (bfepm-utils-version-satisfies-p "999.999.999" "latest")))
-
-(ert-deftest bfepm-utils-version-satisfies-p-caret ()
-  "Test caret version constraint satisfaction."
-  (should (bfepm-utils-version-satisfies-p "1.2.3" "^1.0.0"))
-  (should (bfepm-utils-version-satisfies-p "1.9.9" "^1.0.0"))
-  (should-not (bfepm-utils-version-satisfies-p "2.0.0" "^1.0.0"))
-  (should-not (bfepm-utils-version-satisfies-p "0.9.9" "^1.0.0")))
-
-(ert-deftest bfepm-utils-version-satisfies-p-tilde ()
-  "Test tilde version constraint satisfaction."
-  (should (bfepm-utils-version-satisfies-p "1.0.5" "~1.0.0"))
-  (should (bfepm-utils-version-satisfies-p "1.0.9" "~1.0.0"))
-  (should-not (bfepm-utils-version-satisfies-p "1.1.0" "~1.0.0"))
-  (should-not (bfepm-utils-version-satisfies-p "0.9.9" "~1.0.0")))
-
-(ert-deftest bfepm-utils-version-satisfies-p-melpa-caret ()
-  "Test caret version constraint for MELPA date versions."
-  (should (bfepm-utils-version-satisfies-p "20250602.1300" "^20250601"))
-  (should (bfepm-utils-version-satisfies-p "20251231.2359" "^20250601"))
-  (should-not (bfepm-utils-version-satisfies-p "20260101.0000" "^20250601")))
-
-(ert-deftest bfepm-utils-version-satisfies-p-melpa-tilde ()
-  "Test tilde version constraint for MELPA date versions."
-  (should (bfepm-utils-version-satisfies-p "20250601.1300" "~20250601.1200"))
-  (should (bfepm-utils-version-satisfies-p "20250601.2359" "~20250601.1200"))
-  (should-not (bfepm-utils-version-satisfies-p "20250602.0000" "~20250601.1200")))
-
 ;;; Error Handling Tests
 
 (ert-deftest bfepm-utils-error-test ()
@@ -117,6 +54,26 @@
       (when (file-exists-p test-dir)
         (delete-directory test-dir t)))))
 
+;;; File Copying Tests
+
+(ert-deftest bfepm-utils-copy-file-test ()
+  "Test file copying utility."
+  (let ((source-file (make-temp-file "bfepm-copy-source"))
+        (target-file (make-temp-file "bfepm-copy-target")))
+    (unwind-protect
+        (progn
+          (with-temp-file source-file
+            (insert "test content"))
+          (bfepm-utils-copy-file source-file target-file)
+          (should (file-exists-p target-file))
+          (with-temp-buffer
+            (insert-file-contents target-file)
+            (should (string= (buffer-string) "test content"))))
+      (when (file-exists-p source-file)
+        (delete-file source-file))
+      (when (file-exists-p target-file)
+        (delete-file target-file)))))
+
 ;;; Checksum Tests
 
 (ert-deftest bfepm-utils-file-checksum-test ()
@@ -152,112 +109,34 @@
       (when (file-exists-p test-file2)
         (delete-file test-file2)))))
 
-;;; Git Utility Tests
-
-(ert-deftest bfepm-utils-git-clone-test ()
-  "Test git clone functionality with a mock."
-  (let ((test-url "https://github.com/test/repo.git")
-        (test-dir (expand-file-name "test-git-clone" temporary-file-directory)))
+(ert-deftest bfepm-utils-verify-checksum-test ()
+  "Test checksum verification."
+  (let ((test-file (make-temp-file "bfepm-verify-test")))
     (unwind-protect
         (progn
-          (when (file-exists-p test-dir)
-            (delete-directory test-dir t))
-          ;; Mock call-process to simulate successful git clone
-          (cl-letf (((symbol-function 'call-process)
-                     (lambda (program &rest args)
-                       (when (string= program "git")
-                         (make-directory test-dir t)
-                         (with-temp-file (expand-file-name "test.el" test-dir)
-                           (insert ";;; Test file\n"))
-                         0))))
-            (should-not (file-exists-p test-dir))
-            (bfepm-utils-git-clone test-url test-dir)
-            (should (file-directory-p test-dir))))
-      (when (file-exists-p test-dir)
-        (delete-directory test-dir t)))))
+          (with-temp-file test-file
+            (insert "test content"))
+          (let ((correct-checksum (bfepm-utils-file-checksum test-file))
+                (wrong-checksum "deadbeefcafebabe"))
+            (should (bfepm-utils-verify-checksum test-file correct-checksum))
+            (should-not (bfepm-utils-verify-checksum test-file wrong-checksum))))
+      (when (file-exists-p test-file)
+        (delete-file test-file)))))
 
-(ert-deftest bfepm-utils-git-clone-with-ref-test ()
-  "Test git clone with specific reference."
-  (let ((test-url "https://github.com/test/repo.git")
-        (test-dir (expand-file-name "test-git-clone-ref" temporary-file-directory))
-        (test-ref "v1.0.0")
-        (call-process-args nil))
+(ert-deftest bfepm-utils-verify-checksum-case-insensitive ()
+  "Test checksum verification is case insensitive."
+  (let ((test-file (make-temp-file "bfepm-verify-case-test")))
     (unwind-protect
         (progn
-          (when (file-exists-p test-dir)
-            (delete-directory test-dir t))
-          ;; Mock call-process to capture arguments
-          (cl-letf (((symbol-function 'call-process)
-                     (lambda (program &rest args)
-                       (setq call-process-args (cons program args))
-                       (when (string= program "git")
-                         (make-directory test-dir t)
-                         0))))
-            (bfepm-utils-git-clone test-url test-dir test-ref)
-            (should (member "--branch" call-process-args))
-            (should (member test-ref call-process-args))))
-      (when (file-exists-p test-dir)
-        (delete-directory test-dir t)))))
-
-(ert-deftest bfepm-utils-git-clone-shallow-test ()
-  "Test git clone with shallow option."
-  (let ((test-url "https://github.com/test/repo.git")
-        (test-dir (expand-file-name "test-git-clone-shallow" temporary-file-directory))
-        (call-process-args nil))
-    (unwind-protect
-        (progn
-          (when (file-exists-p test-dir)
-            (delete-directory test-dir t))
-          ;; Mock call-process to capture arguments
-          (cl-letf (((symbol-function 'call-process)
-                     (lambda (program &rest args)
-                       (setq call-process-args (cons program args))
-                       (when (string= program "git")
-                         (make-directory test-dir t)
-                         0))))
-            (bfepm-utils-git-clone test-url test-dir nil t)
-            (should (member "--depth" call-process-args))
-            (should (member "1" call-process-args))))
-      (when (file-exists-p test-dir)
-        (delete-directory test-dir t)))))
-
-(ert-deftest bfepm-utils-git-get-commit-hash-test ()
-  "Test getting git commit hash."
-  (let ((test-dir (expand-file-name "test-git-commit" temporary-file-directory))
-        (test-hash "abc123def456"))
-    (unwind-protect
-        (progn
-          (make-directory test-dir t)
-          ;; Mock call-process to return test hash
-          (cl-letf (((symbol-function 'call-process)
-                     (lambda (program &rest args)
-                       (when (and (string= program "git")
-                                  (member "rev-parse" args))
-                         (insert test-hash "\n")
-                         0))))
-            (let ((default-directory test-dir))
-              (should (string= test-hash (bfepm-utils-git-get-commit-hash test-dir))))))
-      (when (file-exists-p test-dir)
-        (delete-directory test-dir t)))))
-
-(ert-deftest bfepm-utils-git-get-latest-tag-test ()
-  "Test getting latest git tag."
-  (let ((test-dir (expand-file-name "test-git-tag" temporary-file-directory))
-        (test-tag "v1.2.3"))
-    (unwind-protect
-        (progn
-          (make-directory test-dir t)
-          ;; Mock call-process to return test tag
-          (cl-letf (((symbol-function 'call-process)
-                     (lambda (program &rest args)
-                       (when (and (string= program "git")
-                                  (member "describe" args))
-                         (insert test-tag "\n")
-                         0))))
-            (let ((default-directory test-dir))
-              (should (string= test-tag (bfepm-utils-git-get-latest-tag test-dir))))))
-      (when (file-exists-p test-dir)
-        (delete-directory test-dir t)))))
+          (with-temp-file test-file
+            (insert "test content"))
+          (let* ((checksum (bfepm-utils-file-checksum test-file))
+                 (uppercase-checksum (upcase checksum))
+                 (lowercase-checksum (downcase checksum)))
+            (should (bfepm-utils-verify-checksum test-file uppercase-checksum))
+            (should (bfepm-utils-verify-checksum test-file lowercase-checksum))))
+      (when (file-exists-p test-file)
+        (delete-file test-file)))))
 
 (provide 'bfepm-utils-test)
 

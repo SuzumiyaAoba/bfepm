@@ -220,6 +220,9 @@ Returns a string describing the git package specification."
 (require 'bfepm-utils)
 (message "[BFEPM Demo] ** bfepm-utils loaded")
 
+(require 'bfepm-version)
+(message "[BFEPM Demo] ** bfepm-version loaded")
+
 (require 'bfepm-core)
 (message "[BFEPM Demo] ** bfepm-core loaded")
 
@@ -698,12 +701,12 @@ Returns a string describing the git package specification."
   (message "[BFEPM Demo] Testing version comparison...")
   (condition-case test-version-err
       (progn
-        (if (featurep 'bfepm-utils)
+        (if (featurep 'bfepm-version)
             (progn
-              (message "[BFEPM Demo] 1.0.0 vs 1.0.0: %d" (bfepm-utils-version-compare "1.0.0" "1.0.0"))
-              (message "[BFEPM Demo] 1.0.1 vs 1.0.0: %d" (bfepm-utils-version-compare "1.0.1" "1.0.0"))
-              (message "[BFEPM Demo] 1.0.0 vs 1.0.1: %d" (bfepm-utils-version-compare "1.0.0" "1.0.1")))
-          (message "[BFEPM Demo] XX bfepm-utils module not loaded")))
+              (message "[BFEPM Demo] 1.0.0 vs 1.0.0: %d" (bfepm-version-compare "1.0.0" "1.0.0"))
+              (message "[BFEPM Demo] 1.0.1 vs 1.0.0: %d" (bfepm-version-compare "1.0.1" "1.0.0"))
+              (message "[BFEPM Demo] 1.0.0 vs 1.0.1: %d" (bfepm-version-compare "1.0.0" "1.0.1")))
+          (message "[BFEPM Demo] XX bfepm-version module not loaded")))
     (error 
      (message "[BFEPM Demo] XX Error testing version comparison: %s" (error-message-string test-version-err)))))
 

@@ -386,7 +386,7 @@ CALLBACK is called with (success error-message) when complete."
 
     ;; Download package file asynchronously with checksum verification
     (bfepm-utils-message "📥 Downloading %s (%s) (NON-BLOCKING)..." package-name version-string)
-    (bfepm-utils-download-file-async
+    (bfepm-network-download-file-async
      archive-file local-file
      (lambda (success error-msg)
        (if success
@@ -446,7 +446,7 @@ CALLBACK is called with (success error-message) when complete."
 
     ;; Download package file asynchronously with checksum verification
     (bfepm-utils-message "📥 Downloading dependency %s (%s) (NON-BLOCKING)..." package-name version-string)
-    (bfepm-utils-download-file-async
+    (bfepm-network-download-file-async
      archive-file local-file
      (lambda (success error-msg)
        (if success
@@ -868,7 +868,7 @@ KIND specifies the package type (tar or single file)."
 LOCAL-FILE is the destination path for download.
 PACKAGE-NAME, VERSION, and KIND are used for checksum verification."
   ;; Download the file
-  (unless (bfepm-utils-download-file url local-file 3)
+  (unless (bfepm-network-download-file url local-file 3)
     (bfepm-utils-error "Failed to download %s after retries" package-name))
 
   ;; Verify file was downloaded successfully
@@ -884,6 +884,15 @@ PACKAGE-NAME, VERSION, and KIND are used for checksum verification."
         (bfepm-utils-error "Checksum verification failed for %s" package-name))))
 
   t)
+
+(defun bfepm-package-extract-tar (tar-file target-dir)
+  "Extract TAR-FILE to TARGET-DIR."
+  (bfepm-utils-message "Extracting %s..." tar-file)
+  (let ((default-directory target-dir))
+    (with-temp-buffer
+      (call-process "tar" nil t nil "-xf" tar-file)
+      (when (> (buffer-size) 0)
+        (bfepm-utils-message "Extraction output: %s" (buffer-string))))))
 
 (provide 'bfepm-package)
 
