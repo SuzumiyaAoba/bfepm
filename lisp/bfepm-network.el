@@ -54,7 +54,16 @@ MAX-RETRIES defaults to 3. This is a synchronous operation."
       (message "[BFEPM Network] Downloading from %s... (attempt %d/%d)" url attempt retries)
       (condition-case err
           (progn
-            (url-copy-file url local-file t)
+            ;; Try url-copy-file with different argument patterns for compatibility
+            (condition-case nil
+                (url-copy-file url local-file t)
+              (wrong-number-of-arguments
+               ;; Fallback for different Emacs versions
+               (condition-case nil
+                   (url-copy-file url local-file)
+                 (wrong-number-of-arguments
+                  ;; Use url-retrieve as final fallback
+                  (bfepm-network--download-with-url-retrieve url local-file)))))
             (when (and (file-exists-p local-file)
                        (> (file-attribute-size (file-attributes local-file)) 0))
               (message "[BFEPM Network] Downloaded to %s" local-file)
@@ -65,6 +74,19 @@ MAX-RETRIES defaults to 3. This is a synchronous operation."
            (error "[BFEPM Network] Failed to download %s after %d attempts: %s"
                   url retries (error-message-string err))))))
     success))
+
+(defun bfepm-network--download-with-url-retrieve (url local-file)
+  "Download URL to LOCAL-FILE using url-retrieve as fallback method."
+  (let ((buffer (url-retrieve-synchronously url t)))
+    (when buffer
+      (unwind-protect
+          (with-current-buffer buffer
+            ;; Skip HTTP headers
+            (goto-char (point-min))
+            (re-search-forward "^\r?$" nil t)
+            ;; Write content to file
+            (write-region (point) (point-max) local-file))
+        (kill-buffer buffer)))))
 
 (defun bfepm-network-download-file-async (url local-file callback &optional max-retries)
   "Download file from URL to LOCAL-FILE asynchronously.
