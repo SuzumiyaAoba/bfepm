@@ -74,10 +74,14 @@
 (defun bfepm-ui-refresh-buffer (&optional _ignore-auto _noconfirm)
   "Refresh the BFEPM package list buffer."
   (interactive)
-  (if (eq bfepm-ui-current-view 'installed)
-      (bfepm-ui-update-package-list)
-    (bfepm-ui-update-available-package-list))
-  (tabulated-list-print t))
+  (condition-case err
+      (when (derived-mode-p 'bfepm-ui-mode)
+        (if (eq bfepm-ui-current-view 'installed)
+            (bfepm-ui-update-package-list)
+          (bfepm-ui-update-available-package-list))
+        (tabulated-list-print t))
+    (error
+     (message "Failed to refresh BFEPM UI buffer: %s" (error-message-string err)))))
 
 (defun bfepm-ui-update-package-list ()
   "Update the tabulated list with current package information."
@@ -340,7 +344,13 @@
              (progn
                (message "✓ Successfully installed %s - refreshing package list" package-name)
                ;; Refresh UI asynchronously to avoid blocking
-               (run-with-timer 0.1 nil #'bfepm-ui-refresh))
+               (run-with-timer 0.1 nil 
+                             (lambda ()
+                               (condition-case timer-err
+                                   (bfepm-ui-refresh)
+                                 (error
+                                  (message "UI refresh after install failed: %s" 
+                                          (error-message-string timer-err)))))))
            (message "✗ Failed to install %s: %s" package-name error-msg)))))))
 
 (defun bfepm-ui-remove-package ()
@@ -382,7 +392,27 @@
 (defun bfepm-ui-refresh ()
   "Refresh the package list."
   (interactive)
-  (revert-buffer))
+  (condition-case err
+      (cond
+       ;; If called interactively in a BFEPM UI buffer
+       ((and (called-interactively-p 'any)
+             (derived-mode-p 'bfepm-ui-mode))
+        (bfepm-ui-refresh-buffer))
+       ;; If called from timer, find the BFEPM UI buffer
+       ((not (called-interactively-p 'any))
+        (let ((ui-buffer (get-buffer bfepm-ui-buffer-name)))
+          (when (and ui-buffer (buffer-live-p ui-buffer))
+            (with-current-buffer ui-buffer
+              (when (derived-mode-p 'bfepm-ui-mode)
+                (bfepm-ui-refresh-buffer))))))
+       ;; Default fallback - try revert-buffer if appropriate
+       ((and (derived-mode-p 'bfepm-ui-mode)
+             revert-buffer-function)
+        (funcall revert-buffer-function))
+       ;; Last resort - just refresh buffer directly
+       (t (bfepm-ui-refresh-buffer)))
+    (error
+     (message "BFEPM UI refresh failed: %s" (error-message-string err)))))
 
 (defun bfepm-ui-help ()
   "Show help for BFEPM UI commands."

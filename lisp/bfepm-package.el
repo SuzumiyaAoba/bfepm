@@ -386,7 +386,7 @@ CALLBACK is called with (success error-message) when complete."
 
     ;; Download package file asynchronously with checksum verification
     (bfepm-utils-message "📥 Downloading %s (%s) (NON-BLOCKING)..." package-name version-string)
-    (bfepm-utils-download-file-async
+    (bfepm-network-download-file-async
      archive-file local-file
      (lambda (success error-msg)
        (if success
@@ -427,7 +427,7 @@ CALLBACK is called with (success error-message) when complete."
 (defun bfepm-package--download-and-install-elpa-async-simple (package package-info callback)
   "Download and install ELPA PACKAGE using PACKAGE-INFO asynchronously.
 This dependency version does not install dependencies to avoid circular deps.
-CALLBACK is called with (success error-message) when complete."
+CALLBACK is called with (success package-name error-message) when complete."
   (let* ((package-name (bfepm-package-name package))
          (info-list (if (vectorp package-info) (append package-info nil) package-info))
          (version (car info-list))
@@ -446,7 +446,7 @@ CALLBACK is called with (success error-message) when complete."
 
     ;; Download package file asynchronously with checksum verification
     (bfepm-utils-message "📥 Downloading dependency %s (%s) (NON-BLOCKING)..." package-name version-string)
-    (bfepm-utils-download-file-async
+    (bfepm-network-download-file-async
      archive-file local-file
      (lambda (success error-msg)
        (if success
@@ -470,18 +470,18 @@ CALLBACK is called with (success error-message) when complete."
                          ;; Invalidate caches after successful installation
                          (bfepm-core--invalidate-cache package-name)
                          (bfepm-utils-message "✅ Successfully installed dependency %s" package-name)
-                         (funcall callback t nil))
+                         (funcall callback t package-name nil))
                      (error
                       ;; Rollback on failure
                       (when (file-directory-p install-dir)
                         (bfepm-utils-message "Rolling back failed dependency installation of %s" package-name)
                         (ignore-errors (delete-directory install-dir t)))
-                      (funcall callback nil (format "Failed to install dependency %s: %s" 
+                      (funcall callback nil package-name (format "Failed to install dependency %s: %s" 
                                                    package-name (error-message-string extract-err)))))))
              (error
-              (funcall callback nil (error-message-string err))))
+              (funcall callback nil package-name (error-message-string err))))
          ;; Download failed
-         (funcall callback nil (format "Failed to download dependency %s: %s" package-name error-msg))))
+         (funcall callback nil package-name (format "Failed to download dependency %s: %s" package-name error-msg))))
      3))) ; 3 retries
 
 (defun bfepm-package--download-and-install-git (package package-info)
@@ -614,13 +614,13 @@ CALLBACK is called with (success error-message) when all are done."
       (bfepm-utils-message "📥 Installing dependency: %s (NON-BLOCKING)" dep-name)
       (bfepm-package--install-single-dependency-async
        dep-name
-       (lambda (success _package-name error-msg)
+       (lambda (success package-name error-msg)
          (if success
              ;; Add delay between dependency installations to avoid rate limiting
              (run-with-timer 0.5 nil
                            (lambda ()
                              (bfepm-package--install-dependencies-async-recursive deps (1+ index) callback)))
-           (bfepm-utils-message "Warning: Failed to install dependency %s: %s" dep-name error-msg)
+           (bfepm-utils-message "Warning: Failed to install dependency %s: %s" package-name error-msg)
            ;; Continue with next dependency even if one fails (with delay)
            (run-with-timer 0.5 nil
                           (lambda ()
@@ -868,7 +868,7 @@ KIND specifies the package type (tar or single file)."
 LOCAL-FILE is the destination path for download.
 PACKAGE-NAME, VERSION, and KIND are used for checksum verification."
   ;; Download the file
-  (unless (bfepm-utils-download-file url local-file 3)
+  (unless (bfepm-network-download-file url local-file 3)
     (bfepm-utils-error "Failed to download %s after retries" package-name))
 
   ;; Verify file was downloaded successfully
