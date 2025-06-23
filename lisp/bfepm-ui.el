@@ -43,6 +43,7 @@
     (define-key map (kbd "B i") 'bfepm-ui-install-marked)
     (define-key map (kbd "B d") 'bfepm-ui-remove-marked)
     (define-key map (kbd "/") 'bfepm-ui-filter-packages)
+    (define-key map (kbd "C-c l") 'bfepm-ui-show-install-log)
     map)
   "Keymap for BFEPM UI mode.")
 
@@ -336,22 +337,26 @@
                                     (mapcar #'car (bfepm-ui--get-config-packages))
                                     nil nil))))
     (when pkg-name
-      (message "🔄 Installing %s... (ASYNC: UI stays responsive during download/extraction)" pkg-name)
+      (message "🔄 Installing %s... (Progress will be shown in messages)" pkg-name)
+      (bfepm-ui--log-install-start pkg-name)
       (bfepm-package-install-async 
        pkg-name
        (lambda (success package-name error-msg)
          (if success
              (progn
+               (bfepm-ui--log-install-success package-name)
                (message "✓ Successfully installed %s - refreshing package list" package-name)
                ;; Refresh UI asynchronously to avoid blocking
-               (run-with-timer 0.1 nil 
+               (run-with-timer 0.3 nil 
                              (lambda ()
                                (condition-case timer-err
                                    (bfepm-ui-refresh)
                                  (error
                                   (message "UI refresh after install failed: %s" 
                                           (error-message-string timer-err)))))))
-           (message "✗ Failed to install %s: %s" package-name error-msg)))))))
+           (progn
+             (bfepm-ui--log-install-failure package-name error-msg)
+             (message "✗ Failed to install %s: %s" package-name error-msg))))))))
 
 (defun bfepm-ui-remove-package ()
   "Remove the package at point."
@@ -436,7 +441,8 @@
     (princ "  M     - Unmark all packages\n")
     (princ "  B i   - Install all marked packages\n")
     (princ "  B d   - Remove all marked packages\n")
-    (princ "  /     - Filter packages by name/description\n\n")
+    (princ "  /     - Filter packages by name/description\n")
+    (princ "  C-c l - Show installation progress log\n\n")
     (princ "Views:\n")
     (princ "  Installed - Packages currently installed\n")
     (princ "  Available - Packages defined in configuration file\n\n")
@@ -643,6 +649,70 @@
     (let ((filter-regex (regexp-quote bfepm-ui-filter-string)))
       (or (string-match-p filter-regex package-name)
           (and description (string-match-p filter-regex description))))))
+
+;; Progress tracking for installation feedback
+
+(defvar bfepm-ui--install-log nil
+  "List of recent installation attempts for progress tracking.")
+
+(defun bfepm-ui--log-install-start (package-name)
+  "Log the start of installation for PACKAGE-NAME."
+  (let ((entry (list package-name 'installing (current-time))))
+    (setq bfepm-ui--install-log 
+          (cons entry (cl-remove package-name bfepm-ui--install-log :key #'car :test #'string=)))
+    ;; Keep only last 20 entries
+    (when (> (length bfepm-ui--install-log) 20)
+      (setq bfepm-ui--install-log (butlast bfepm-ui--install-log 5)))
+    (message "🔄 Started installing %s..." package-name)))
+
+(defun bfepm-ui--log-install-success (package-name)
+  "Log successful installation of PACKAGE-NAME."
+  (let ((entry (assoc package-name bfepm-ui--install-log)))
+    (when entry
+      (setcar (cdr entry) 'success)
+      (setcar (cddr entry) (current-time))))
+  (message "✅ %s installation completed successfully" package-name))
+
+(defun bfepm-ui--log-install-failure (package-name error-msg)
+  "Log failed installation of PACKAGE-NAME with ERROR-MSG."
+  (let ((entry (assoc package-name bfepm-ui--install-log)))
+    (when entry
+      (setcar (cdr entry) 'failed)
+      (setcar (cddr entry) (current-time))
+      (setcdr (cddr entry) (list error-msg))))
+  (message "❌ %s installation failed: %s" package-name error-msg))
+
+;;;###autoload
+(defun bfepm-ui-show-install-log ()
+  "Show recent installation attempts and their status."
+  (interactive)
+  (if (null bfepm-ui--install-log)
+      (message "No recent installation attempts")
+    (let ((buffer (get-buffer-create "*BFEPM Install Log*")))
+      (with-current-buffer buffer
+        (let ((inhibit-read-only t))
+          (erase-buffer)
+          (insert "=== BFEPM Installation Log ===\n\n")
+          (insert "Time      Status      Package Name\n")
+          (insert "========  ==========  ==================\n")
+          (dolist (entry bfepm-ui--install-log)
+            (let* ((pkg-name (car entry))
+                   (status (cadr entry))
+                   (time (caddr entry))
+                   (error-msg (cadddr entry))
+                   (time-str (format-time-string "%H:%M:%S" time))
+                   (status-str (pcase status
+                                ('installing "🔄 Installing")
+                                ('success "✅ Success")
+                                ('failed "❌ Failed"))))
+              (insert (format "%s  %-10s  %s\n" time-str status-str pkg-name))
+              (when (and (eq status 'failed) error-msg)
+                (insert (format "          Error: %s\n" error-msg)))))
+          (insert "\nPress 'q' to close this buffer.\n")
+          (goto-char (point-min))
+          (read-only-mode 1)
+          (local-set-key (kbd "q") 'quit-window)))
+      (pop-to-buffer buffer))))
 
 (provide 'bfepm-ui)
 

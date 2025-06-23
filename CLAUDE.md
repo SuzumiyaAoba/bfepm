@@ -63,55 +63,94 @@ keg install
 
 ## Architecture Overview
 
-bfepm is an Emacs Lisp package manager with a modular, layered architecture:
+bfepm is a modern Emacs Lisp package manager with a **domain-driven, modular architecture** consisting of 11 specialized modules:
 
-### Core Components
-- **bfepm.el**: Main entry point with interactive commands (lisp/bfepm.el)
-- **bfepm-core.el**: Core functionality, data structures, and initialization (lisp/bfepm-core.el)
-- **bfepm-config.el**: TOML configuration file parsing and validation (lisp/bfepm-config.el)
-- **bfepm-config-minimal.el**: Fallback configuration without TOML dependency (lisp/bfepm-config-minimal.el)
-- **bfepm-package.el**: Package installation, removal, and management (lisp/bfepm-package.el)
-- **bfepm-utils.el**: Utility functions for downloads, version comparison, and file operations (lisp/bfepm-utils.el)
-- **bfepm-lock.el**: Lock file generation and verification for reproducible installs (lisp/bfepm-lock.el)
-- **bfepm-ui.el**: Interactive tabulated package management interface (lisp/bfepm-ui.el)
+### 📦 **Core Modules (4 modules)**
+- **bfepm.el**: Main entry point with interactive commands and public API
+- **bfepm-core.el**: Core functionality, data structures, and system initialization
+- **bfepm-config.el**: TOML configuration parsing, validation, and management
+- **bfepm-config-minimal.el**: Fallback configuration system without TOML dependencies
 
-### Data Structures
-- `bfepm-package`: Represents a package with name, version, source, dependencies, config, and status
+### 🔧 **Domain Services (5 modules)**
+- **bfepm-package.el**: Package installation, removal, dependency resolution, and lifecycle management
+- **bfepm-network.el**: HTTP operations, downloads, retry logic, and rate limiting
+- **bfepm-git.el**: Git operations, repository management, and version control
+- **bfepm-version.el**: Version comparison, constraint handling, and semantic versioning
+- **bfepm-lock.el**: Lock file generation, verification, and reproducible installations
+
+### 🎮 **User Interface (2 modules)**
+- **bfepm-ui.el**: Interactive tabulated package management interface with advanced features
+- **bfepm-utils.el**: Generic utilities, error handling, and cross-cutting concerns
+
+### 🏗️ **System Architecture**
+```
+User Interface Layer
+├── bfepm.el                 # Interactive commands (bfepm-install, bfepm-update, etc.)
+├── bfepm-ui.el             # Advanced package management UI
+└── Public API              # User-facing functions
+
+Core Business Logic
+├── bfepm-core.el           # Data structures and core functionality  
+├── bfepm-package.el        # Package lifecycle management
+├── bfepm-config.el         # Configuration system
+├── bfepm-config-minimal.el # Fallback configuration
+└── bfepm-lock.el           # Reproducible installations
+
+Domain Services  
+├── bfepm-network.el        # Network operations and downloads
+├── bfepm-git.el           # Git repository management
+├── bfepm-version.el       # Version handling and constraints
+└── bfepm-utils.el         # Generic utilities and error handling
+```
+
+### 📊 **Data Structures**
+- `bfepm-package`: Core package representation with name, version, source, dependencies, config, and status
 - `bfepm-config`: Configuration structure containing packages, sources, profiles, and global settings
 - `bfepm-source`: Package source definition with URL, type, and priority
 - `bfepm-lock`: Lock file structure ensuring deterministic package versions
 
-### File Organization
+### 📁 **File Organization**
 ```
 ~/.emacs.d/
-├── bfepm.toml        # Main configuration
-├── bfepm.lock        # Version lock file
+├── bfepm.toml        # Main TOML configuration
+├── bfepm.lock        # S-expression lock file
 └── bfepm/
-    ├── packages/     # Installed packages
+    ├── packages/     # Installed packages directory
     ├── cache/        # Download and metadata cache
-    └── profiles/     # Profile configurations
+    └── profiles/     # Profile-based configurations
 ```
 
-### Configuration Format
-bfepm uses TOML for configuration with support for:
-- Package specifications with version constraints
-- Multiple package sources (MELPA, GNU ELPA, Git repos)
-- Profile-based configuration management
+### ⚙️ **Configuration Format**
+bfepm uses TOML for human-readable configuration with support for:
+- Package specifications with semantic version constraints
+- Multiple package sources (MELPA, GNU ELPA, Git repositories)
+- Git packages with branch/tag/commit support
 - Package-specific configuration and keybindings
+- Profile-based configuration management
+- Source priority and fallback strategies
 
-### Key Design Principles
-1. **Declarative Configuration**: Single TOML file for all package management
-2. **Reproducible Builds**: Lock files ensure consistent environments
-3. **Lazy Loading**: Packages loaded only when needed
-4. **Profile Support**: Different configurations for different use cases
+### 🎯 **Key Design Principles**
+1. **Domain-Driven Design**: Clear separation of concerns across 11 specialized modules
+2. **Declarative Configuration**: Single TOML file for all package management
+3. **Reproducible Builds**: S-expression lock files ensure consistent environments
+4. **Async Operations**: Non-blocking downloads and installations
+5. **Error Recovery**: Comprehensive retry logic and rollback capabilities
+6. **Modular Architecture**: Loosely coupled modules with clear interfaces
 
-### Testing Strategy
-- **ERT**: Emacs standard testing framework for robust test execution (35 tests)
+### 🧪 **Testing Strategy**
+- **Comprehensive Coverage**: 63 tests across 7 test suites covering all modules
+- **ERT Framework**: Emacs standard testing framework for robust test execution
 - **Unit Tests**: Test individual functions and data structures with `ert-deftest`
 - **Integration Tests**: Test component interactions and workflows
+- **Async Testing**: Specialized tests for async operations and callbacks
 - **Coverage Reporting**: Using built-in testcover for test coverage analysis
-- **Mock-friendly**: Utilities designed for easy testing and isolation
-- **CI/CD Integration**: Streamlined pipeline using Makefile targets
+- **CI/CD Integration**: Multi-version testing and quality checks
+
+### 📈 **Current Status**
+- **Code Quality**: 11 modules, 63 tests, lint-free codebase
+- **Architecture**: Mature domain-driven design with proper separation of concerns
+- **Features**: Core functionality complete, approaching production readiness
+- **Performance**: Async operations, intelligent caching, retry logic
 
 ## Git Workflow Guidelines
 
@@ -165,9 +204,22 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 - [ ] Documentation updated if needed
 - [ ] CLAUDE.md updated for workflow changes
 
-When working with this codebase:
+## Development Guidelines
+
+### 🏗️ **Code Architecture Patterns**
+- **Domain Separation**: Keep domain-specific functions in appropriate modules
+  - Network operations → `bfepm-network.el`
+  - Git operations → `bfepm-git.el`
+  - Version handling → `bfepm-version.el`
+  - Package management → `bfepm-package.el`
+  - Generic utilities only → `bfepm-utils.el`
+- **Async Callbacks**: Use consistent 3-argument callback pattern: `(success package-name error-msg)`
+- **Error Handling**: Comprehensive error recovery with `bfepm-utils-error` and condition-case
+- **Module Dependencies**: Maintain clear dependency hierarchy to avoid circular dependencies
+
+### 📝 **Coding Standards**
 - Follow existing naming conventions (bfepm- prefix for all functions)
-- Use cl-defstruct for data structures  
+- Use cl-defstruct for data structures with proper field validation
 - Include comprehensive error handling with bfepm-utils-error
 - Add docstrings to all public functions (checkdoc compliant)
 - Write tests for new functionality using ERT (`ert-deftest`)
@@ -175,3 +227,22 @@ When working with this codebase:
 - Run `make check` before committing changes
 - Maintain test coverage above 80% when possible
 - Always follow the Git workflow guidelines above
+
+### 🔄 **Async Programming Patterns**
+- All async operations use callback pattern with consistent signatures
+- Network operations are non-blocking with retry logic
+- UI refreshes use timers to avoid blocking the main thread
+- Error handling includes proper cleanup for failed async operations
+
+### 🧪 **Testing Best Practices**
+- Test both sync and async code paths
+- Use temporary files and directories for file system tests
+- Mock external dependencies (network, git) when possible
+- Include edge cases and error conditions in tests
+- Verify cleanup in test teardown (unwind-protect)
+
+### 🏷️ **Version and Dependency Management**
+- Support both semantic versioning (^1.2.3) and MELPA date versions (^20240601)
+- Handle git packages with branch/tag/commit specifications
+- Implement proper dependency resolution with cycle detection
+- Use lock files for reproducible builds across environments
