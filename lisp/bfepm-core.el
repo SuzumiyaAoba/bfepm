@@ -35,6 +35,9 @@
 (defvar bfepm--cache-directory nil
   "Directory for BFEPM cache.")
 
+(defvar bfepm--profiles-directory nil
+  "Directory where profile configurations are stored.")
+
 ;; Performance caching variables
 (defvar bfepm--directory-cache nil
   "Cache for directory listings to improve performance.")
@@ -57,7 +60,8 @@
 (cl-defstruct bfepm-config
   "Structure representing BFEPM configuration."
   packages
-  sources)
+  sources
+  profiles)
 
 (cl-defstruct bfepm-source
   "Structure representing a package source."
@@ -86,7 +90,11 @@
     
     (setq bfepm--cache-directory (expand-file-name "cache" bfepm-dir))
     (unless (file-exists-p bfepm--cache-directory)
-      (make-directory bfepm--cache-directory t))))
+      (make-directory bfepm--cache-directory t))
+    
+    (setq bfepm--profiles-directory (expand-file-name "profiles" bfepm-dir))
+    (unless (file-exists-p bfepm--profiles-directory)
+      (make-directory bfepm--profiles-directory t))))
 
 (defun bfepm-core--load-config ()
   "Load BFEPM configuration from file."

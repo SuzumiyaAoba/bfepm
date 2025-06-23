@@ -58,6 +58,14 @@
   (error
    (message "Warning: bfepm-ui could not be loaded")))
 
+;; Load bfepm-profile module
+(condition-case nil
+    (progn
+      (require 'bfepm-profile)
+      (message "BFEPM: bfepm-profile loaded successfully"))
+  (error
+   (message "Warning: bfepm-profile could not be loaded")))
+
 ;; Declare external functions to avoid compilation warnings
 (declare-function bfepm-package-list "bfepm-package")
 (declare-function bfepm-package-install "bfepm-package")
@@ -67,6 +75,13 @@
 (declare-function bfepm-package-remove "bfepm-package")
 (declare-function bfepm-ui "bfepm-ui")
 (declare-function bfepm-ui-show-available-external "bfepm-ui")
+(declare-function bfepm-profile-create "bfepm-profile")
+(declare-function bfepm-profile-switch "bfepm-profile")
+(declare-function bfepm-profile-list "bfepm-profile")
+(declare-function bfepm-profile-remove "bfepm-profile")
+(declare-function bfepm-profile-copy "bfepm-profile")
+(declare-function bfepm-profile-current "bfepm-profile")
+(declare-function bfepm-profile-list-names "bfepm-profile")
 (declare-function bfepm-ui-show-installed-external "bfepm-ui")
 
 (defcustom bfepm-config-file (expand-file-name "bfepm.toml" user-emacs-directory)
@@ -135,6 +150,53 @@ If ASYNC is non-nil, install asynchronously (non-blocking)."
   "Initialize BFEPM in the current Emacs session."
   (interactive)
   (bfepm-core-initialize))
+
+;; Profile management commands
+
+;;;###autoload
+(defun bfepm-profile-create-interactive (name &optional base-profile)
+  "Create a new profile with NAME, optionally based on BASE-PROFILE."
+  (interactive "sProfile name: ")
+  (bfepm-profile-create name base-profile))
+
+;;;###autoload
+(defun bfepm-profile-switch-interactive (profile-name)
+  "Switch to profile PROFILE-NAME."
+  (interactive 
+   (list (completing-read "Switch to profile: " 
+                          (bfepm-profile-list-names)
+                          nil t)))
+  (bfepm-profile-switch profile-name))
+
+;;;###autoload
+(defun bfepm-profile-list-interactive ()
+  "List all available profiles."
+  (interactive)
+  (bfepm-profile-list))
+
+;;;###autoload
+(defun bfepm-profile-remove-interactive (profile-name)
+  "Remove profile PROFILE-NAME."
+  (interactive 
+   (list (completing-read "Remove profile: " 
+                          (bfepm-profile-list-names)
+                          nil t)))
+  (bfepm-profile-remove profile-name))
+
+;;;###autoload
+(defun bfepm-profile-copy-interactive (source-profile target-profile)
+  "Copy SOURCE-PROFILE to TARGET-PROFILE."
+  (interactive
+   (list (completing-read "Copy from profile: " 
+                          (bfepm-profile-list-names) nil t)
+         (read-string "Copy to profile: ")))
+  (bfepm-profile-copy source-profile target-profile))
+
+;;;###autoload
+(defun bfepm-profile-current-interactive ()
+  "Show current active profile."
+  (interactive)
+  (message "Current profile: %s" (bfepm-profile-current)))
 
 (provide 'bfepm)
 

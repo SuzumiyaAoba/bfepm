@@ -57,11 +57,13 @@
   (if bfepm-config--toml-available
       (let* ((toml-data (toml:read-from-file file))
              (packages (bfepm-config--parse-packages (alist-get 'packages toml-data)))
-             (sources (bfepm-config--parse-sources (alist-get 'sources toml-data))))
+             (sources (bfepm-config--parse-sources (alist-get 'sources toml-data)))
+             (profiles (bfepm-config--parse-profiles (alist-get 'profiles toml-data))))
         
         (make-bfepm-config
          :packages packages
-         :sources (or sources bfepm-config--default-sources)))
+         :sources (or sources bfepm-config--default-sources)
+         :profiles profiles))
     (error "TOML parser not available - cannot parse config file")))
 
 (defun bfepm-config--parse-packages (packages-data)
@@ -131,11 +133,36 @@ SPEC is the source specification data."
    :type (or (alist-get 'type spec) "elpa")
    :priority (or (alist-get 'priority spec) 10)))
 
+(defun bfepm-config--parse-profiles (profiles-data)
+  "Parse profiles section from TOML data.
+PROFILES-DATA is the raw profile data from TOML parsing."
+  (when profiles-data
+    (let ((profiles '()))
+      (dolist (entry profiles-data)
+        (let ((profile-name (symbol-name (car entry)))
+              (profile-spec (cdr entry)))
+          (cond
+           ;; Profile definition like: development = ["base", "lsp"]
+           ((and (listp profile-spec) (stringp (car profile-spec)))
+            (push (cons profile-name profile-spec) profiles))
+           ;; Profile with packages like: [profiles.development.packages]
+           ((and (listp profile-spec) (alist-get 'packages profile-spec))
+            (let ((includes (alist-get 'includes profile-spec))
+                  (packages (alist-get 'packages profile-spec)))
+              (push (cons profile-name
+                          (list :includes includes :packages packages))
+                    profiles)))
+           ;; Simple profile list
+           ((listp profile-spec)
+            (push (cons profile-name profile-spec) profiles)))))
+      (nreverse profiles))))
+
 (defun bfepm-config-create-default ()
   "Create a default BFEPM configuration."
   (make-bfepm-config
    :packages nil
-   :sources bfepm-config--default-sources))
+   :sources bfepm-config--default-sources
+   :profiles nil))
 
 (defun bfepm-config-save (config file)
   "Save BFEPM CONFIG to TOML FILE."
