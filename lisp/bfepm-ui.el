@@ -667,7 +667,11 @@
   (interactive)
   (let ((name (read-string "Profile name: "))
         (base-profile (completing-read "Base profile (optional): " 
-                                       (cons "" (ignore-errors (bfepm-profile-list-names)))
+                                       (cons "" (condition-case err
+                                                    (bfepm-profile-list-names)
+                                                  (error
+                                                   (message "Error listing profiles: %s" (error-message-string err))
+                                                   nil)))
                                        nil t "")))
     (if (string-empty-p base-profile)
         (bfepm-profile-create name)
@@ -678,7 +682,11 @@
   "Switch to a different profile from the UI."
   (interactive)
   (let ((profile-name (completing-read "Switch to profile: " 
-                                       (ignore-errors (bfepm-profile-list-names))
+                                       (condition-case err
+                                           (bfepm-profile-list-names)
+                                         (error
+                                          (message "Error listing profiles: %s" (error-message-string err))
+                                          nil))
                                        nil t)))
     (when profile-name
       (bfepm-profile-switch profile-name)
@@ -693,7 +701,11 @@
   "Remove a profile from the UI."
   (interactive)
   (let ((profile-name (completing-read "Remove profile: " 
-                                       (ignore-errors (bfepm-profile-list-names))
+                                       (condition-case err
+                                           (bfepm-profile-list-names)
+                                         (error
+                                          (message "Error listing profiles: %s" (error-message-string err))
+                                          nil))
                                        nil t)))
     (when profile-name
       (bfepm-profile-remove profile-name)
@@ -703,7 +715,11 @@
   "Copy a profile from the UI."
   (interactive)
   (let ((source-profile (completing-read "Copy from profile: " 
-                                         (ignore-errors (bfepm-profile-list-names))
+                                         (condition-case err
+                                             (bfepm-profile-list-names)
+                                           (error
+                                            (message "Error listing profiles: %s" (error-message-string err))
+                                            nil))
                                          nil t))
         (target-profile (read-string "Copy to profile: ")))
     (when (and source-profile target-profile)
@@ -713,7 +729,11 @@
 (defun bfepm-ui-profile-current ()
   "Show current active profile from the UI."
   (interactive)
-  (message "Current profile: %s" (ignore-errors (bfepm-profile-current))))
+  (message "Current profile: %s" (condition-case err
+                                    (bfepm-profile-current)
+                                  (error
+                                   (message "Error getting current profile: %s" (error-message-string err))
+                                   "unknown"))))
 
 (provide 'bfepm-ui)
 

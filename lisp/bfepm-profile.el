@@ -14,6 +14,9 @@
 (declare-function bfepm-config-load "bfepm-config") 
 (declare-function bfepm-utils-error "bfepm-utils")
 
+;; Declare external variables
+(defvar bfepm--config)
+
 (defvar bfepm--current-profile "default"
   "Currently active profile name.")
 
@@ -28,6 +31,17 @@
   config
   active)
 
+(defun bfepm-profile--validate-name (name)
+  "Validate that NAME is safe for use as a filename."
+  (unless (string-match-p "^[a-zA-Z0-9_-]+$" name)
+    (user-error "Profile name must contain only letters, numbers, hyphens, and underscores"))
+  (when (member name '("." ".." "CON" "PRN" "AUX" "NUL"))
+    (user-error "Profile name '%s' is reserved" name))
+  (when (> (length name) 255)
+    (user-error "Profile name is too long"))
+  (when (string-empty-p name)
+    (user-error "Profile name cannot be empty")))
+
 (defun bfepm-profile--ensure-profiles-directory ()
   "Ensure profiles directory exists."
   (unless bfepm--profiles-directory
@@ -39,14 +53,18 @@
 (defun bfepm-profile-create (name &optional base-profile)
   "Create a new profile with NAME, optionally based on BASE-PROFILE."
   (interactive "sProfile name: ")
+  (bfepm-profile--validate-name name)
+  (when (and base-profile (not (string-empty-p base-profile)))
+    (bfepm-profile--validate-name base-profile))
   (bfepm-profile--ensure-profiles-directory)
   
   (let* ((profile-file (expand-file-name (format "%s.toml" name) bfepm--profiles-directory))
-         (base-packages (when base-profile
-                         (bfepm-profile--get-profile-packages base-profile)))
+         (valid-base-profile (when (and base-profile (not (string-empty-p base-profile))) base-profile))
+         (base-packages (when valid-base-profile
+                         (bfepm-profile--get-profile-packages valid-base-profile)))
          (profile (make-bfepm-profile
                    :name name
-                   :includes (when base-profile (list base-profile))
+                   :includes (when valid-base-profile (list valid-base-profile))
                    :packages (or base-packages '())
                    :config '()
                    :active nil)))
@@ -66,6 +84,7 @@
                           (bfepm-profile-list-names)
                           nil t)))
   
+  (bfepm-profile--validate-name profile-name)
   (unless (bfepm-profile-exists-p profile-name)
     (user-error "Profile '%s' does not exist" profile-name))
   
@@ -103,6 +122,7 @@
 
 (defun bfepm-profile-load (profile-name)
   "Load profile PROFILE-NAME from file."
+  (bfepm-profile--validate-name profile-name)
   (bfepm-profile--ensure-profiles-directory)
   (let ((profile-file (expand-file-name (format "%s.toml" profile-name) 
                                         bfepm--profiles-directory)))
@@ -170,6 +190,12 @@
     (message "Profile '%s' saved to %s" 
              (bfepm-profile-name profile) profile-file)))
 
+(defun bfepm-profile--escape-toml-string (str)
+  "Escape STR for use in TOML format."
+  (replace-regexp-in-string
+   "\\([\"\\\\]\\)" "\\\\\\1"
+   (replace-regexp-in-string "\n" "\\\\n" str)))
+
 (defun bfepm-profile--format-profile-content (profile)
   "Format PROFILE content as TOML string."
   (let ((content ""))
@@ -178,7 +204,7 @@
     (when (bfepm-profile-includes profile)
       (setq content (concat content
                             "includes = ["
-                            (mapconcat (lambda (inc) (format "\"%s\"" inc))
+                            (mapconcat (lambda (inc) (format "\"%s\"" (bfepm-profile--escape-toml-string inc)))
                                        (bfepm-profile-includes profile) ", ")
                             "]\n\n")))
     
@@ -188,7 +214,8 @@
       (dolist (package (bfepm-profile-packages profile))
         (setq content (concat content
                               (format "%s = \"%s\"\n" 
-                                      (car package) (cdr package))))))
+                                      (bfepm-profile--escape-toml-string (car package))
+                                      (bfepm-profile--escape-toml-string (cdr package)))))))
     
     content))
 
@@ -261,6 +288,7 @@ ALL-PACKAGES is modified in place. VISITED-PROFILES tracks circular dependencies
                           (bfepm-profile-list-names)
                           nil t)))
   
+  (bfepm-profile--validate-name profile-name)
   (when (string= profile-name "default")
     (user-error "Cannot remove default profile"))
   
@@ -282,6 +310,8 @@ ALL-PACKAGES is modified in place. VISITED-PROFILES tracks circular dependencies
                           (bfepm-profile-list-names) nil t)
          (read-string "Copy to profile: ")))
   
+  (bfepm-profile--validate-name source-profile)
+  (bfepm-profile--validate-name target-profile)
   (unless (bfepm-profile-exists-p source-profile)
     (user-error "Source profile '%s' does not exist" source-profile))
   

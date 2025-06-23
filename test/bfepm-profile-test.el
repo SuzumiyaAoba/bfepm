@@ -243,6 +243,27 @@ package2 = \"2.0\""))
       (should (equal (bfepm-profile-includes profile) '("base" "dev")))
       (should (equal (bfepm-profile-packages profile) '(("package1" . "1.0") ("package2" . "2.0")))))))
 
+(ert-deftest bfepm-profile-test-validate-name ()
+  "Test profile name validation."
+  ;; Valid names should pass
+  (should-not (condition-case nil (bfepm-profile--validate-name "valid-name") (error t)))
+  (should-not (condition-case nil (bfepm-profile--validate-name "valid_name") (error t)))
+  (should-not (condition-case nil (bfepm-profile--validate-name "ValidName123") (error t)))
+  
+  ;; Invalid names should fail
+  (should (condition-case nil (bfepm-profile--validate-name "") (error t)))
+  (should (condition-case nil (bfepm-profile--validate-name "invalid name") (error t)))
+  (should (condition-case nil (bfepm-profile--validate-name "invalid/name") (error t)))
+  (should (condition-case nil (bfepm-profile--validate-name ".") (error t)))
+  (should (condition-case nil (bfepm-profile--validate-name "CON") (error t))))
+
+(ert-deftest bfepm-profile-test-escape-toml-string ()
+  "Test TOML string escaping functionality."
+  (should (string= (bfepm-profile--escape-toml-string "simple") "simple"))
+  (should (string= (bfepm-profile--escape-toml-string "has\"quote") "has\\\"quote"))
+  (should (string= (bfepm-profile--escape-toml-string "has\\backslash") "has\\\\backslash"))
+  (should (string= (bfepm-profile--escape-toml-string "has\nnewline") "has\\\\nnewline")))
+
 (provide 'bfepm-profile-test)
 
 ;;; bfepm-profile-test.el ends here
