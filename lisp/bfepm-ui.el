@@ -12,6 +12,15 @@
 (require 'bfepm-package)
 (require 'bfepm-utils)
 
+;; Declare profile functions to avoid compilation warnings
+(declare-function bfepm-profile-create "bfepm-profile")
+(declare-function bfepm-profile-switch "bfepm-profile")
+(declare-function bfepm-profile-list "bfepm-profile")
+(declare-function bfepm-profile-remove "bfepm-profile")
+(declare-function bfepm-profile-copy "bfepm-profile")
+(declare-function bfepm-profile-current "bfepm-profile")
+(declare-function bfepm-profile-list-names "bfepm-profile")
+
 
 (defvar bfepm-ui-buffer-name "*BFEPM Packages*"
   "Name of the BFEPM package management buffer.")
@@ -43,6 +52,14 @@
     (define-key map (kbd "B i") 'bfepm-ui-install-marked)
     (define-key map (kbd "B d") 'bfepm-ui-remove-marked)
     (define-key map (kbd "/") 'bfepm-ui-filter-packages)
+    ;; Profile management keys
+    (define-key map (kbd "p c") 'bfepm-ui-profile-create)
+    (define-key map (kbd "p s") 'bfepm-ui-profile-switch)
+    (define-key map (kbd "p l") 'bfepm-ui-profile-list)
+    (define-key map (kbd "p r") 'bfepm-ui-profile-remove)
+    (define-key map (kbd "p o") 'bfepm-ui-profile-copy)
+    (define-key map (kbd "p .") 'bfepm-ui-profile-current)
+    ;; Installation log
     (define-key map (kbd "C-c l") 'bfepm-ui-show-install-log)
     map)
   "Keymap for BFEPM UI mode.")
@@ -443,6 +460,13 @@
     (princ "  B d   - Remove all marked packages\n")
     (princ "  /     - Filter packages by name/description\n")
     (princ "  C-c l - Show installation progress log\n\n")
+    (princ "Profile Management:\n")
+    (princ "  p c   - Create new profile\n")
+    (princ "  p s   - Switch to profile\n")
+    (princ "  p l   - List all profiles\n")
+    (princ "  p r   - Remove profile\n")
+    (princ "  p o   - Copy profile\n")
+    (princ "  p .   - Show current profile\n\n")
     (princ "Views:\n")
     (princ "  Installed - Packages currently installed\n")
     (princ "  Available - Packages defined in configuration file\n\n")
@@ -650,6 +674,81 @@
       (or (string-match-p filter-regex package-name)
           (and description (string-match-p filter-regex description))))))
 
+;; Profile management UI functions
+
+(defun bfepm-ui-profile-create ()
+  "Create a new profile from the UI."
+  (interactive)
+  (let ((name (read-string "Profile name: "))
+        (base-profile (completing-read "Base profile (optional): " 
+                                       (cons "" (condition-case err
+                                                    (bfepm-profile-list-names)
+                                                  (error
+                                                   (message "Error listing profiles: %s" (error-message-string err))
+                                                   nil)))
+                                       nil t "")))
+    (if (string-empty-p base-profile)
+        (bfepm-profile-create name)
+      (bfepm-profile-create name base-profile))
+    (bfepm-ui-refresh)))
+
+(defun bfepm-ui-profile-switch ()
+  "Switch to a different profile from the UI."
+  (interactive)
+  (let ((profile-name (completing-read "Switch to profile: " 
+                                       (condition-case err
+                                           (bfepm-profile-list-names)
+                                         (error
+                                          (message "Error listing profiles: %s" (error-message-string err))
+                                          nil))
+                                       nil t)))
+    (when profile-name
+      (bfepm-profile-switch profile-name)
+      (bfepm-ui-refresh))))
+
+(defun bfepm-ui-profile-list ()
+  "List all available profiles from the UI."
+  (interactive)
+  (bfepm-profile-list))
+
+(defun bfepm-ui-profile-remove ()
+  "Remove a profile from the UI."
+  (interactive)
+  (let ((profile-name (completing-read "Remove profile: " 
+                                       (condition-case err
+                                           (bfepm-profile-list-names)
+                                         (error
+                                          (message "Error listing profiles: %s" (error-message-string err))
+                                          nil))
+                                       nil t)))
+    (when profile-name
+      (bfepm-profile-remove profile-name)
+      (bfepm-ui-refresh))))
+
+(defun bfepm-ui-profile-copy ()
+  "Copy a profile from the UI."
+  (interactive)
+  (let ((source-profile (completing-read "Copy from profile: " 
+                                         (condition-case err
+                                             (bfepm-profile-list-names)
+                                           (error
+                                            (message "Error listing profiles: %s" (error-message-string err))
+                                            nil))
+                                         nil t))
+        (target-profile (read-string "Copy to profile: ")))
+    (when (and source-profile target-profile)
+      (bfepm-profile-copy source-profile target-profile)
+      (bfepm-ui-refresh))))
+
+(defun bfepm-ui-profile-current ()
+  "Show current active profile from the UI."
+  (interactive)
+  (message "Current profile: %s" (condition-case err
+                                    (bfepm-profile-current)
+                                  (error
+                                   (message "Error getting current profile: %s" (error-message-string err))
+                                   "unknown"))))
+
 ;; Progress tracking for installation feedback
 
 (defvar bfepm-ui--install-log nil
@@ -713,7 +812,6 @@
           (read-only-mode 1)
           (local-set-key (kbd "q") 'quit-window)))
       (pop-to-buffer buffer))))
-
 (provide 'bfepm-ui)
 
 ;;; bfepm-ui.el ends here
