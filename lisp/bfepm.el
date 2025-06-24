@@ -73,6 +73,8 @@
 (declare-function bfepm-package-update "bfepm-package")
 (declare-function bfepm-package-update-all "bfepm-package")
 (declare-function bfepm-package-remove "bfepm-package")
+(declare-function bfepm-package--batch-install-async "bfepm-package")
+(declare-function bfepm-package-health-check "bfepm-package")
 (declare-function bfepm-ui "bfepm-ui")
 (declare-function bfepm-ui-show-available-external "bfepm-ui")
 (declare-function bfepm-profile-create "bfepm-profile")
@@ -138,6 +140,36 @@ If ASYNC is non-nil, install asynchronously (non-blocking)."
   (if bfepm--package-available
       (bfepm-package-list)
     (message "Package listing not available (bfepm-package module not loaded)")))
+
+;;;###autoload
+(defun bfepm-batch-install (package-names)
+  "Install multiple packages efficiently with parallel processing.
+PACKAGE-NAMES should be a list of package name strings."
+  (interactive 
+   (list (split-string 
+          (read-string "Package names (space-separated): ") 
+          "[ \t\n]+" t)))
+  (if bfepm--package-available
+      (when package-names
+        (message "Starting batch installation of %d packages..." (length package-names))
+        (bfepm-package--batch-install-async
+         package-names
+         (lambda (success-list failed-list)
+           (if (null failed-list)
+               (message "✅ Successfully installed all %d packages: %s" 
+                       (length success-list)
+                       (string-join success-list ", "))
+             (message "⚠️ Batch installation completed with %d failures. Success: %d, Failed: %d"
+                     (length failed-list) (length success-list) (length failed-list))))))
+    (message "Batch installation not available (bfepm-package module not loaded)")))
+
+;;;###autoload
+(defun bfepm-source-health-check ()
+  "Check health of all package sources."
+  (interactive)
+  (if bfepm--package-available
+      (bfepm-package-health-check)
+    (message "Source health check not available (bfepm-package module not loaded)")))
 
 ;;;###autoload
 (defun bfepm-ui-show ()

@@ -61,6 +61,8 @@
     (define-key map (kbd "p .") 'bfepm-ui-profile-current)
     ;; Installation log
     (define-key map (kbd "C-c l") 'bfepm-ui-show-install-log)
+    (define-key map (kbd "C-c b") 'bfepm-batch-install)
+    (define-key map (kbd "C-c h") 'bfepm-source-health-check)
     map)
   "Keymap for BFEPM UI mode.")
 
@@ -459,7 +461,9 @@
     (princ "  B i   - Install all marked packages\n")
     (princ "  B d   - Remove all marked packages\n")
     (princ "  /     - Filter packages by name/description\n")
-    (princ "  C-c l - Show installation progress log\n\n")
+    (princ "  C-c l - Show installation progress log\n")
+    (princ "  C-c b - Batch install packages\n")
+    (princ "  C-c h - Check source health\n\n")
     (princ "Profile Management:\n")
     (princ "  p c   - Create new profile\n")
     (princ "  p s   - Switch to profile\n")

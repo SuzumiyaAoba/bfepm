@@ -781,6 +781,91 @@ KIND specifies the package type (tar or single file)."
     (bfepm-package-remove package-name)
     (bfepm-package-install package-name)))
 
+;; Parallel dependency installation for improved performance
+
+(defun bfepm-package--install-dependency-async-simple (package callback)
+  "Install single dependency PACKAGE asynchronously.
+CALLBACK is called with (success package-name error-message)."
+  (let ((package-name (bfepm-package-name package)))
+    (bfepm-package-install-async 
+     package-name
+     (lambda (success pkg-name error-msg)
+       (funcall callback success pkg-name error-msg)))))
+
+(defun bfepm-package--install-dependencies-parallel-async (dependencies callback)
+  "Install DEPENDENCIES in parallel for better performance.
+CALLBACK is called with (success failed-packages) when all are complete."
+  (if (null dependencies)
+      (funcall callback t nil)
+    (let* ((total-deps (length dependencies))
+           (completed-deps 0)
+           (failed-deps '())
+           (success-deps '())
+           (completion-callback
+            (lambda (success dep-name error-msg)
+              (setq completed-deps (1+ completed-deps))
+              (if success
+                  (push dep-name success-deps)
+                (push (cons dep-name error-msg) failed-deps))
+              
+              ;; Check if all dependencies are complete
+              (when (= completed-deps total-deps)
+                (if (null failed-deps)
+                    (progn
+                      (bfepm-utils-message "✅ Successfully installed %d dependencies in parallel" 
+                                         (length success-deps))
+                      (funcall callback t nil))
+                  (progn
+                    (bfepm-utils-message "⚠️ Parallel installation completed with %d failures: %s"
+                                       (length failed-deps)
+                                       (mapconcat (lambda (pair) (format "%s (%s)" (car pair) (cdr pair)))
+                                                failed-deps ", "))
+                    (funcall callback nil failed-deps)))))))
+      
+      (bfepm-utils-message "🚀 Starting parallel installation of %d dependencies..." total-deps)
+      
+      ;; Start all dependency installations in parallel
+      (dolist (dep dependencies)
+        (let ((dep-name (bfepm-package-name dep)))
+          (if (bfepm-core-package-installed-p dep-name)
+              ;; Already installed - mark as success immediately
+              (funcall completion-callback t dep-name nil)
+            ;; Install dependency asynchronously
+            (bfepm-package--install-dependency-async-simple dep completion-callback)))))))
+
+(defun bfepm-package--install-dependencies-async-enhanced (package-name dependencies callback)
+  "Install DEPENDENCIES for PACKAGE-NAME with enhanced parallel processing.
+CALLBACK is called with (success error-message) when complete."
+  (if (null dependencies)
+      (funcall callback t nil)
+    (let ((filtered-deps (cl-remove-if 
+                         (lambda (dep) 
+                           (let ((name (bfepm-package-name dep)))
+                             (or (bfepm-core-package-installed-p name)
+                                 (string= name package-name)))) ; Skip self
+                         dependencies)))
+      
+      (if (null filtered-deps)
+          (progn
+            (bfepm-utils-message "All dependencies for %s already installed" package-name)
+            (funcall callback t nil))
+        
+        (bfepm-utils-message "Installing %d dependencies for %s..." 
+                           (length filtered-deps) package-name)
+        
+        ;; Use parallel installation for better performance
+        (bfepm-package--install-dependencies-parallel-async
+         filtered-deps
+         (lambda (success failed-deps)
+           (if success
+               (progn
+                 (bfepm-utils-message "✅ All dependencies for %s installed successfully" package-name)
+                 (funcall callback t nil))
+             (let ((error-msg (format "Failed to install dependencies: %s"
+                                    (mapconcat (lambda (pair) (car pair)) failed-deps ", "))))
+               (bfepm-utils-message "❌ Dependency installation failed for %s: %s" package-name error-msg)
+               (funcall callback nil error-msg)))))))))
+
 (defun bfepm-package-update-all ()
   "Update all installed packages with optimized batch processing."
   (let ((installed-packages (bfepm-core-get-installed-packages)))
@@ -884,6 +969,151 @@ PACKAGE-NAME, VERSION, and KIND are used for checksum verification."
         (bfepm-utils-error "Checksum verification failed for %s" package-name))))
 
   t)
+
+;; Enhanced MELPA/ELPA source management and discovery
+
+(defun bfepm-package--find-package-in-sources-parallel (package-name sources callback)
+  "Search for PACKAGE-NAME across SOURCES in parallel for better performance.
+CALLBACK is called with (source package-info) when found, or (nil nil) if not
+found."
+  (if (null sources)
+      (funcall callback nil nil)
+    (let* ((total-sources (length sources))
+           (completed-sources 0)
+           (found-result nil)
+           (completion-callback
+            (lambda (source package-info)
+              (setq completed-sources (1+ completed-sources))
+              (when (and package-info (not found-result))
+                (setq found-result (cons source package-info)))
+              
+              ;; Check if all sources are complete or we found the package
+              (when (or found-result (= completed-sources total-sources))
+                (if found-result
+                    (funcall callback (car found-result) (cdr found-result))
+                  (funcall callback nil nil))))))
+      
+      (bfepm-utils-message "🔍 Searching for %s across %d sources in parallel..." 
+                         package-name total-sources)
+      
+      ;; Search all sources in parallel
+      (dolist (source sources)
+        (let* ((source-name (car source))
+               (source-config (cdr source))
+               (archive-url (bfepm-package--get-source-url source-config)))
+          (bfepm-package--fetch-archive-contents-async
+           archive-url
+           (lambda (success contents error-msg)
+             (if success
+                 (let ((package-info (alist-get (intern package-name) contents)))
+                   (if package-info
+                       (progn
+                         (bfepm-utils-message "✅ Found %s in source %s" package-name source-name)
+                         (funcall completion-callback source package-info))
+                     (funcall completion-callback nil nil)))
+               (progn
+                 (bfepm-utils-message "⚠️ Failed to fetch from source %s: %s" source-name error-msg)
+                 (funcall completion-callback nil nil))))))))))
+
+(defun bfepm-package--batch-install-async (package-names callback)
+  "Install multiple PACKAGE-NAMES efficiently with parallel processing.
+CALLBACK is called with (success-list failed-list) when complete."
+  (if (null package-names)
+      (funcall callback nil nil)
+    (let* ((total-packages (length package-names))
+           (completed-packages 0)
+           (success-packages '())
+           (failed-packages '())
+           (completion-callback
+            (lambda (success package-name error-msg)
+              (setq completed-packages (1+ completed-packages))
+              (if success
+                  (push package-name success-packages)
+                (push (cons package-name error-msg) failed-packages))
+              
+              ;; Check if all packages are complete
+              (when (= completed-packages total-packages)
+                (bfepm-utils-message "📦 Batch installation complete: %d success, %d failed"
+                                   (length success-packages) (length failed-packages))
+                (funcall callback success-packages failed-packages)))))
+      
+      (bfepm-utils-message "🚀 Starting batch installation of %d packages..." total-packages)
+      
+      ;; Install all packages in parallel
+      (dolist (package-name package-names)
+        (bfepm-package-install-async package-name completion-callback)))))
+
+(defun bfepm-package--check-source-health-async (sources callback)
+  "Check health of SOURCES by testing archive-contents availability.
+CALLBACK is called with (healthy-sources unhealthy-sources)."
+  (if (null sources)
+      (funcall callback nil nil)
+    (let* ((total-sources (length sources))
+           (completed-sources 0)
+           (healthy-sources '())
+           (unhealthy-sources '())
+           (completion-callback
+            (lambda (source-name healthy)
+              (setq completed-sources (1+ completed-sources))
+              (if healthy
+                  (push source-name healthy-sources)
+                (push source-name unhealthy-sources))
+              
+              ;; Check if all sources are complete
+              (when (= completed-sources total-sources)
+                (bfepm-utils-message "🏥 Source health check complete: %d healthy, %d unhealthy"
+                                   (length healthy-sources) (length unhealthy-sources))
+                (funcall callback healthy-sources unhealthy-sources)))))
+      
+      (bfepm-utils-message "🔍 Checking health of %d package sources..." total-sources)
+      
+      ;; Check all sources in parallel
+      (dolist (source sources)
+        (let* ((source-name (car source))
+               (source-config (cdr source))
+               (archive-url (bfepm-package--get-source-url source-config)))
+          (bfepm-network-http-get-async
+           archive-url
+           (lambda (success _data error-msg)
+             (if success
+                 (progn
+                   (bfepm-utils-message "✅ Source %s is healthy" source-name)
+                   (funcall completion-callback source-name t))
+               (progn
+                 (bfepm-utils-message "❌ Source %s is unhealthy: %s" source-name error-msg)
+                 (funcall completion-callback source-name nil))))))))))
+
+;;;###autoload
+(defun bfepm-package-health-check ()
+  "Check health of all configured package sources."
+  (interactive)
+  (let* ((config (bfepm-core-get-config))
+         (sources (if config 
+                     (bfepm-config-sources config)
+                   (bfepm-package--get-default-sources))))
+    (bfepm-package--check-source-health-async
+     sources
+     (lambda (healthy unhealthy)
+       (let ((buffer (get-buffer-create "*BFEPM Source Health*")))
+         (with-current-buffer buffer
+           (let ((inhibit-read-only t))
+             (erase-buffer)
+             (insert "=== BFEPM Source Health Report ===\n\n")
+             (insert (format "Checked at: %s\n\n" (current-time-string)))
+             
+             (insert (format "✅ Healthy Sources (%d):\n" (length healthy)))
+             (dolist (source healthy)
+               (insert (format "  • %s\n" source)))
+             
+             (insert (format "\n❌ Unhealthy Sources (%d):\n" (length unhealthy)))
+             (dolist (source unhealthy)
+               (insert (format "  • %s\n" source)))
+             
+             (insert "\nPress 'q' to close this buffer.\n")
+             (goto-char (point-min))
+             (read-only-mode 1)
+             (local-set-key (kbd "q") 'quit-window)))
+         (pop-to-buffer buffer))))))
 
 (provide 'bfepm-package)
 
