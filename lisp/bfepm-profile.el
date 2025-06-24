@@ -149,25 +149,31 @@
       (insert content)
       (goto-char (point-min))
       
-      ;; Parse includes
+      ;; Parse includes - more robust parsing
       (when (re-search-forward "^includes\\s-*=\\s-*\\[\\([^]]+\\)\\]" nil t)
-        (let ((includes-str (match-string 1)))
+        (let ((includes-str (string-trim (match-string 1))))
           (setq includes (delq nil
                                (mapcar (lambda (s)
-                                         (when (string-match "\"\\([^\"]+\\)\"" s)
-                                           (match-string 1 s)))
+                                         (let ((trimmed (string-trim s)))
+                                           (when (string-match "^\"\\([^\"]*\\)\"$" trimmed)
+                                             (match-string 1 trimmed))))
                                        (split-string includes-str ","))))))
       
-      ;; Parse packages section
+      ;; Parse packages section - more robust parsing
       (goto-char (point-min))
       (when (re-search-forward "^\\[packages\\]" nil t)
         (forward-line)
         (while (and (< (point) (point-max))
                     (not (looking-at "^\\[")))
-          (when (looking-at "^\\([a-zA-Z0-9_-]+\\)\\s-*=\\s-*\"\\([^\"]+\\)\"")
-            (let ((package-name (match-string 1))
-                  (version (match-string 2)))
-              (push (cons package-name version) packages)))
+          (let ((line (string-trim (buffer-substring-no-properties 
+                                   (line-beginning-position) 
+                                   (line-end-position)))))
+            (when (and (not (string-empty-p line))
+                       (not (string-match-p "^#" line))  ; Skip comments
+                       (string-match "^\\([a-zA-Z0-9_-]+\\)\\s-*=\\s-*\"\\([^\"]*\\)\"" line))
+              (let ((package-name (match-string 1 line))
+                    (version (match-string 2 line)))
+                (push (cons package-name version) packages))))
           (forward-line))))
     
     (setf (bfepm-profile-includes profile) includes
@@ -224,7 +230,7 @@
   ;; Resolve profile inheritance
   (let ((resolved-packages (bfepm-profile--resolve-packages profile)))
     ;; Update current configuration with profile packages
-    (when (and bfepm--config resolved-packages)
+    (when (and (boundp 'bfepm--config) bfepm--config resolved-packages)
       (setf (bfepm-config-packages bfepm--config) resolved-packages))
     
     ;; Mark profile as active
