@@ -17,6 +17,9 @@
 ;; Forward declaration for config functions
 (declare-function bfepm-config-get-package "bfepm-config")
 
+;; Forward declarations for optional modules  
+(declare-function bfepm-search "bfepm-search")
+
 ;; Try to load bfepm-config, fall back to minimal if not available
 (condition-case nil
     (require 'bfepm-config)
@@ -827,11 +830,11 @@ KIND specifies the package type (tar or single file)."
       (bfepm-utils-message "Package not found: %s" package-name))))
 
 (defun bfepm-package-search (query)
-  "Search for packages matching QUERY."
+  "Search for packages matching QUERY.
+This function is deprecated. Use `bfepm-search' instead."
   (bfepm-utils-message "Searching for packages matching: %s" query)
-  ;; This would implement actual search functionality
-  ;; For now, just a placeholder
-  (bfepm-utils-message "Search functionality not yet implemented"))
+  (when (featurep 'bfepm-search)
+    (bfepm-search query)))
 
 (defun bfepm-package--verify-installation (package-name install-dir)
   "Verify that PACKAGE-NAME was installed correctly in INSTALL-DIR."

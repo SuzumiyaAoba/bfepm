@@ -12,6 +12,11 @@
 (require 'bfepm-package)
 (require 'bfepm-utils)
 
+;; Try to load bfepm-search
+(declare-function bfepm-search "bfepm-search")
+(declare-function bfepm-search-async "bfepm-search")
+(declare-function bfepm-search-installed-packages "bfepm-search")
+
 ;; Declare profile functions to avoid compilation warnings
 (declare-function bfepm-profile-create "bfepm-profile")
 (declare-function bfepm-profile-switch "bfepm-profile")
@@ -29,7 +34,13 @@
   "Name of the BFEPM available packages buffer.")
 
 (defvar bfepm-ui-current-view 'installed
-  "Current view mode: \\='installed or \\='available.")
+  "Current view mode: \\='installed, \\='available, or \\='search.")
+
+(defvar bfepm-ui-search-results nil
+  "Current search results for search view.")
+
+(defvar bfepm-ui-last-search-query ""
+  "Last search query for refreshing search view.")
 
 (defvar bfepm-ui-mode-map
   (let ((map (make-sparse-keymap)))
@@ -52,6 +63,8 @@
     (define-key map (kbd "B i") 'bfepm-ui-install-marked)
     (define-key map (kbd "B d") 'bfepm-ui-remove-marked)
     (define-key map (kbd "/") 'bfepm-ui-filter-packages)
+    (define-key map (kbd "S") 'bfepm-ui-search-packages)
+    (define-key map (kbd "C-s") 'bfepm-ui-search-installed)
     ;; Profile management keys
     (define-key map (kbd "p c") 'bfepm-ui-profile-create)
     (define-key map (kbd "p s") 'bfepm-ui-profile-switch)
@@ -67,9 +80,12 @@
 (defun bfepm-ui--update-mode-line ()
   "Update mode line to show current view."
   (setq mode-name (format "BFEPM Packages [%s]" 
-                         (if (eq bfepm-ui-current-view 'installed)
-                             "Installed"
-                           "Available"))))
+                         (cond
+                          ((eq bfepm-ui-current-view 'installed) "Installed")
+                          ((eq bfepm-ui-current-view 'available) "Available")
+                          ((eq bfepm-ui-current-view 'search) 
+                           (format "Search: %s" bfepm-ui-last-search-query))
+                          (t "Unknown")))))
 
 (define-derived-mode bfepm-ui-mode tabulated-list-mode "BFEPM Packages"
   "Major mode for managing BFEPM packages."
@@ -94,9 +110,13 @@
   (interactive)
   (condition-case err
       (when (derived-mode-p 'bfepm-ui-mode)
-        (if (eq bfepm-ui-current-view 'installed)
-            (bfepm-ui-update-package-list)
+        (cond
+         ((eq bfepm-ui-current-view 'installed)
+          (bfepm-ui-update-package-list))
+         ((eq bfepm-ui-current-view 'available)
           (bfepm-ui-update-available-package-list))
+         ((eq bfepm-ui-current-view 'search)
+          (bfepm-ui-update-search-results-list)))
         (tabulated-list-print t))
     (error
      (message "Failed to refresh BFEPM UI buffer: %s" (error-message-string err)))))
@@ -287,12 +307,47 @@
     
     description))
 
+(defun bfepm-ui-update-search-results-list ()
+  "Update the tabulated list with search results."
+  (let ((entries '()))
+    (when bfepm-ui-search-results
+      (dolist (result bfepm-ui-search-results)
+        (when (bfepm-ui--should-show-package-p 
+               (if (fboundp 'bfepm-search-result-name)
+                   (bfepm-search-result-name result)
+                 (plist-get result :name))
+               (if (fboundp 'bfepm-search-result-description)
+                   (bfepm-search-result-description result)
+                 (plist-get result :description)))
+          (let* ((name (if (fboundp 'bfepm-search-result-name)
+                          (bfepm-search-result-name result)
+                        (plist-get result :name)))
+                 (version (if (fboundp 'bfepm-search-result-version)
+                             (bfepm-search-result-version result)
+                           (plist-get result :version)))
+                 (status (if (if (fboundp 'bfepm-search-result-installed-p)
+                                (bfepm-search-result-installed-p result)
+                              (plist-get result :installed-p))
+                            "Installed" "Available"))
+                 (description (if (fboundp 'bfepm-search-result-description)
+                                 (bfepm-search-result-description result)
+                               (plist-get result :description)))
+                 (entry (list name
+                             (vector name version status description))))
+            (push entry entries)))))
+    
+    (setq tabulated-list-entries (nreverse entries))))
+
 (defun bfepm-ui-toggle-view ()
   "Toggle between installed and available packages view."
   (interactive)
-  (if (eq bfepm-ui-current-view 'installed)
-      (bfepm-ui-show-available-external)
-    (bfepm-ui-show-installed-external)))
+  (cond
+   ((eq bfepm-ui-current-view 'installed)
+    (bfepm-ui-show-available-external))
+   ((eq bfepm-ui-current-view 'available)
+    (bfepm-ui-show-installed-external))
+   ((eq bfepm-ui-current-view 'search)
+    (bfepm-ui-show-installed-external))))
 
 (defun bfepm-ui-show-package-details ()
   "Show detailed information about the package at point."
@@ -459,6 +514,8 @@
     (princ "  B i   - Install all marked packages\n")
     (princ "  B d   - Remove all marked packages\n")
     (princ "  /     - Filter packages by name/description\n")
+    (princ "  S     - Search packages in archives (MELPA/GNU ELPA)\n")
+    (princ "  C-s   - Search within installed packages\n")
     (princ "  C-c l - Show installation progress log\n\n")
     (princ "Profile Management:\n")
     (princ "  p c   - Create new profile\n")
@@ -469,7 +526,8 @@
     (princ "  p .   - Show current profile\n\n")
     (princ "Views:\n")
     (princ "  Installed - Packages currently installed\n")
-    (princ "  Available - Packages defined in configuration file\n\n")
+    (princ "  Available - Packages defined in configuration file\n")
+    (princ "  Search    - Search results from MELPA/GNU ELPA or installed packages\n\n")
     (princ "Package Status:\n")
     (princ "  Installed - Package is properly installed\n")
     (princ "  Available - Package can be installed from config\n")
@@ -660,7 +718,9 @@
    ((eq bfepm-ui-current-view 'installed)
     (bfepm-ui-update-package-list))
    ((eq bfepm-ui-current-view 'available)
-    (bfepm-ui-update-available-package-list)))
+    (bfepm-ui-update-available-package-list))
+   ((eq bfepm-ui-current-view 'search)
+    (bfepm-ui-update-search-results-list)))
   (tabulated-list-print t)
   (if (string-empty-p filter-string)
       (message "Filter cleared")
@@ -812,6 +872,45 @@
           (read-only-mode 1)
           (local-set-key (kbd "q") 'quit-window)))
       (pop-to-buffer buffer))))
+
+;; Search UI integration
+
+;;;###autoload
+(defun bfepm-ui-search-packages (query)
+  "Search for packages matching QUERY and display results in UI."
+  (interactive "sSearch packages: ")
+  (if (not (featurep 'bfepm-search))
+      (message "Search functionality not available")
+    (setq bfepm-ui-last-search-query query)
+    (message "Searching for packages matching: %s..." query)
+    (bfepm-search-async 
+     query
+     (lambda (success results error-msg)
+       (if success
+           (progn
+             (setq bfepm-ui-search-results results)
+             (setq bfepm-ui-current-view 'search)
+             (bfepm-ui--update-mode-line)
+             (bfepm-ui-update-search-results-list)
+             (tabulated-list-print t)
+             (message "Found %d packages matching '%s'" (length results) query))
+         (message "Search failed: %s" error-msg))))))
+
+;;;###autoload
+(defun bfepm-ui-search-installed (query)
+  "Search within installed packages matching QUERY and display results in UI."
+  (interactive "sSearch installed packages: ")
+  (if (not (featurep 'bfepm-search))
+      (message "Search functionality not available")
+    (setq bfepm-ui-last-search-query (format "installed:%s" query))
+    (let ((results (bfepm-search-installed-packages query)))
+      (setq bfepm-ui-search-results results)
+      (setq bfepm-ui-current-view 'search)
+      (bfepm-ui--update-mode-line)
+      (bfepm-ui-update-search-results-list)
+      (tabulated-list-print t)
+      (message "Found %d installed packages matching '%s'" (length results) query))))
+
 (provide 'bfepm-ui)
 
 ;;; bfepm-ui.el ends here

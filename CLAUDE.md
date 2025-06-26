@@ -63,7 +63,7 @@ keg install
 
 ## Architecture Overview
 
-bfepm is a modern Emacs Lisp package manager with a **domain-driven, modular architecture** consisting of 11 specialized modules:
+bfepm is a modern Emacs Lisp package manager with a **domain-driven, modular architecture** consisting of 12 specialized modules:
 
 ### 📦 **Core Modules (4 modules)**
 - **bfepm.el**: Main entry point with interactive commands and public API
@@ -71,12 +71,13 @@ bfepm is a modern Emacs Lisp package manager with a **domain-driven, modular arc
 - **bfepm-config.el**: TOML configuration parsing, validation, and management
 - **bfepm-config-minimal.el**: Fallback configuration system without TOML dependencies
 
-### 🔧 **Domain Services (5 modules)**
+### 🔧 **Domain Services (6 modules)**
 - **bfepm-package.el**: Package installation, removal, dependency resolution, and lifecycle management
 - **bfepm-network.el**: HTTP operations, downloads, retry logic, and rate limiting
 - **bfepm-git.el**: Git operations, repository management, and version control
 - **bfepm-version.el**: Version comparison, constraint handling, and semantic versioning
 - **bfepm-lock.el**: Lock file generation, verification, and reproducible installations
+- **bfepm-search.el**: Package search across MELPA/GNU ELPA with filtering and detailed results
 
 ### 🎮 **User Interface (2 modules)**
 - **bfepm-ui.el**: Interactive tabulated package management interface with advanced features
@@ -100,6 +101,7 @@ Domain Services
 ├── bfepm-network.el        # Network operations and downloads
 ├── bfepm-git.el           # Git repository management
 ├── bfepm-version.el       # Version handling and constraints
+├── bfepm-search.el        # Package search and discovery
 └── bfepm-utils.el         # Generic utilities and error handling
 ```
 
@@ -108,6 +110,7 @@ Domain Services
 - `bfepm-config`: Configuration structure containing packages, sources, profiles, and global settings
 - `bfepm-source`: Package source definition with URL, type, and priority
 - `bfepm-lock`: Lock file structure ensuring deterministic package versions
+- `bfepm-search-result`: Search result structure with name, version, description, source, and installation status
 
 ### 📁 **File Organization**
 ```
@@ -147,10 +150,11 @@ bfepm uses TOML for human-readable configuration with support for:
 - **CI/CD Integration**: Multi-version testing and quality checks
 
 ### 📈 **Current Status**
-- **Code Quality**: 11 modules, 63 tests, lint-free codebase
+- **Code Quality**: 12 modules, 63+ tests, lint-free codebase  
 - **Architecture**: Mature domain-driven design with proper separation of concerns
-- **Features**: Core functionality complete, approaching production readiness
+- **Features**: Core functionality complete including package search, approaching production readiness
 - **Performance**: Async operations, intelligent caching, retry logic
+- **Search**: Full-featured package search across MELPA/GNU ELPA with UI integration
 
 ## Git Workflow Guidelines
 
