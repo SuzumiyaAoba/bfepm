@@ -2,9 +2,29 @@
 
 ;;; Commentary:
 
-;; This module provides package search functionality for BFEPM.
-;; It searches across MELPA and GNU ELPA archives to find packages
-;; matching user queries with support for filtering and detailed results.
+;; This module provides comprehensive package search functionality for BFEPM.
+;; It searches across MELPA and GNU ELPA archives to find packages matching 
+;; user queries with support for filtering, caching, and detailed results.
+;;
+;; Key Features:
+;; - Synchronous and asynchronous search operations
+;; - Smart caching with configurable expiry time
+;; - Query validation and normalization
+;; - Consistent error handling with detailed error messages  
+;; - Race condition protection for async operations
+;; - Relevance-based result sorting
+;; - Support for both interactive and programmatic usage
+;;
+;; Architecture:
+;; - Query preprocessing: validation, normalization, regex building
+;; - Search operations: sync/async with proper error handling
+;; - Result processing: creation, filtering, sorting with caching
+;; - Display functions: formatted output with user interaction
+;;
+;; Usage Examples:
+;; (bfepm-search \"helm\")                    ; Interactive search
+;; (bfepm-search-async \"ivy\" #'my-callback) ; Async search  
+;; (bfepm-search-installed-packages \"org\")  ; Search installed packages
 
 ;;; Code:
 
@@ -23,6 +43,15 @@
 (defvar bfepm-search--last-results nil
   "Last search results for quick re-filtering.")
 
+(defvar bfepm-search--cache-expiry-time (* 5 60)
+  "Cache expiry time in seconds (5 minutes).")
+
+(defconst bfepm-search--description-read-limit 4096
+  "Maximum number of bytes to read when extracting package descriptions.")
+
+(defvar bfepm-search--last-cache-time nil
+  "Time when cache was last updated.")
+
 (defconst bfepm-search--archive-sources
   '(("melpa" . "https://melpa.org/packages/")
     ("gnu" . "https://elpa.gnu.org/packages/"))
@@ -31,13 +60,54 @@
 ;; Core search data structure
 (cl-defstruct bfepm-search-result
   "Structure representing a single search result."
-  name                    ; Package name (string)
-  version                 ; Version string
-  description             ; Package description
-  source                  ; Source archive (melpa/gnu)
-  dependencies            ; List of dependencies
-  kind                    ; Package type (tar/single)
-  installed-p)            ; Whether package is installed
+  name         ; Package name (string)
+  version      ; Version string
+  description  ; Package description
+  source       ; Source archive (melpa/gnu)
+  dependencies ; List of dependencies
+  kind         ; Package type (tar/single)
+  installed-p) ; Whether package is installed
+
+;; Search query validation and preprocessing
+;;
+;; This section provides input validation and normalization functions
+;; to ensure consistent query processing across all search operations.
+
+(defun bfepm-search--validate-query (query)
+  "Validate search QUERY and return normalized version.
+Returns nil if query is invalid, along with logging appropriate warnings."
+  (cond
+   ((not query)
+    (bfepm-utils-message "Search query cannot be nil")
+    nil)
+   ((not (stringp query))
+    (bfepm-utils-message "Search query must be a string, got %s" (type-of query))
+    nil)
+   (t
+    (let ((trimmed (string-trim query)))
+      (if (string-empty-p trimmed)
+          (progn
+            (bfepm-utils-message "Search query cannot be empty")
+            nil)
+        trimmed)))))
+
+(defun bfepm-search--should-use-cache-p (query)
+  "Check if cached results can be used for QUERY."
+  (and bfepm-search--last-results
+       (string= query bfepm-search--last-query)
+       bfepm-search--last-cache-time
+       (< (- (float-time) bfepm-search--last-cache-time)
+          bfepm-search--cache-expiry-time)))
+
+(defun bfepm-search--update-cache (query results)
+  "Update search cache with QUERY and RESULTS."
+  (setq bfepm-search--last-query query
+        bfepm-search--last-results results
+        bfepm-search--last-cache-time (float-time)))
+
+(defun bfepm-search--format-error-message (operation error-details)
+  "Format consistent error message for search OPERATION with ERROR-DETAILS."
+  (format "[BFEPM Search] Failed to %s: %s" operation error-details))
 
 ;; Main search functions
 
@@ -47,25 +117,48 @@
 SOURCES defaults to all available archives.
 Returns a list of bfepm-search-result structures."
   (interactive "sSearch packages: ")
-  (let ((sources (or sources bfepm-search--archive-sources)))
-    (if (string-empty-p query)
-        (progn
-          (message "Empty search query")
-          nil)
+  (let* ((normalized-query (bfepm-search--validate-query query))
+         (sources (or sources bfepm-search--archive-sources)))
+    (cond
+     ;; Handle invalid query
+     ((not normalized-query)
+      ;; Error message already logged by validation function
+      nil)
+     
+     ;; Check cache first
+     ((bfepm-search--should-use-cache-p normalized-query)
+      (bfepm-utils-message "Using cached results for: %s" normalized-query)
       (if (called-interactively-p 'any)
-          (bfepm-search--display-results 
-           (bfepm-search--search-sync query sources))
-        (bfepm-search--search-sync query sources)))))
+          (bfepm-search--display-results bfepm-search--last-results)
+        bfepm-search--last-results))
+     
+     ;; Perform search
+     (t
+      (let ((results (bfepm-search--search-sync normalized-query sources)))
+        (if (called-interactively-p 'any)
+            (bfepm-search--display-results results)
+          results))))))
 
 ;;;###autoload
 (defun bfepm-search-async (query callback &optional sources)
   "Search for packages matching QUERY asynchronously.
 CALLBACK is called with (success results error-message) when complete.
 SOURCES defaults to all available archives."
-  (let ((sources (or sources bfepm-search--archive-sources)))
-    (if (string-empty-p query)
-        (funcall callback nil nil "Empty search query")
-      (bfepm-search--search-async query sources callback))))
+  (let* ((normalized-query (bfepm-search--validate-query query))
+         (sources (or sources bfepm-search--archive-sources)))
+    (cond
+     ;; Handle invalid query
+     ((not normalized-query)
+      (funcall callback nil nil "Invalid search query"))
+     
+     ;; Check cache first
+     ((bfepm-search--should-use-cache-p normalized-query)
+      (bfepm-utils-message "Using cached results for async search: %s" normalized-query)
+      (funcall callback t bfepm-search--last-results nil))
+     
+     ;; Perform async search
+     (t
+      (bfepm-search--search-async normalized-query sources callback)))))
 
 ;; Synchronous search implementation
 
@@ -87,8 +180,7 @@ SOURCES defaults to all available archives."
                         (length all-results) query)
     
     ;; Cache results
-    (setq bfepm-search--last-query query)
-    (setq bfepm-search--last-results all-results)
+    (bfepm-search--update-cache query all-results)
     
     (bfepm-search--sort-results all-results query)))
 
@@ -103,15 +195,16 @@ SOURCES defaults to all available archives."
                  (info (cdr package-entry))
                  (result (bfepm-search--create-result-from-archive-entry 
                          name info source-name)))
-            (when (bfepm-search--matches-query-p result query-regex)
+            (when (and result (bfepm-search--matches-query-p result query-regex))
               (push result results))))
         
         (bfepm-utils-message "Found %d matches in %s" 
                             (length results) source-name)
         results)
     (error
-     (bfepm-utils-message "Failed to search %s: %s" 
-                         source-name (error-message-string err))
+     (bfepm-utils-message (bfepm-search--format-error-message 
+                          (format "search %s" source-name)
+                          (error-message-string err)))
      nil)))
 
 (defun bfepm-search--fetch-archive-contents-sync (source-url)
@@ -129,17 +222,23 @@ SOURCES defaults to all available archives."
               (error "Invalid archive format"))
             contents))
       (error
-       (bfepm-utils-error "Failed to fetch archive contents from %s: %s"
-                          source-url (error-message-string err))))))
+       (bfepm-utils-message (bfepm-search--format-error-message 
+                            "fetch archive contents"
+                            (format "from %s - %s" archive-file (error-message-string err))))
+       nil))))
 
 ;; Asynchronous search implementation
 
 (defun bfepm-search--search-async (query sources callback)
   "Perform asynchronous search for QUERY across SOURCES."
-  (let ((query-regex (bfepm-search--build-query-regex query))
-        (all-results '())
-        (completed-sources 0)
-        (total-sources (length sources)))
+  (let* ((query-regex (bfepm-search--build-query-regex query))
+         (total-sources (length sources))
+         (search-state (make-hash-table :test 'equal)))
+    
+    ;; Initialize search state to prevent race conditions
+    (puthash 'all-results '() search-state)
+    (puthash 'completed-sources 0 search-state)
+    (puthash 'has-finished nil search-state)
     
     (bfepm-utils-message "Starting async search for: %s" query)
     
@@ -152,25 +251,32 @@ SOURCES defaults to all available archives."
           (bfepm-search--search-source-async 
            query-regex source-name source-url
            (lambda (success results error-msg)
-             (setq completed-sources (1+ completed-sources))
-             
-             (if success
-                 (progn
-                   (setq all-results (append all-results results))
-                   (bfepm-utils-message "Completed search in %s (%d/%d)" 
-                                       source-name completed-sources total-sources))
-               (bfepm-utils-message "Failed to search %s: %s" 
-                                   source-name error-msg))
-             
-             ;; Check if all sources completed
-             (when (= completed-sources total-sources)
-               (let ((sorted-results (bfepm-search--sort-results all-results query)))
-                 (bfepm-utils-message "Async search completed: %d results" 
-                                     (length sorted-results))
-                 ;; Cache results
-                 (setq bfepm-search--last-query query)
-                 (setq bfepm-search--last-results sorted-results)
-                 (funcall callback t sorted-results nil))))))))))
+             ;; Prevent race conditions by checking if already finished
+             (unless (gethash 'has-finished search-state)
+               (let ((completed (1+ (gethash 'completed-sources search-state))))
+                 (puthash 'completed-sources completed search-state)
+                 
+                 (if success
+                     (progn
+                       (puthash 'all-results 
+                               (append (gethash 'all-results search-state) results)
+                               search-state)
+                       (bfepm-utils-message "Completed search in %s (%d/%d)" 
+                                           source-name completed total-sources))
+                   (bfepm-utils-message (bfepm-search--format-error-message 
+                                        (format "search %s" source-name) 
+                                        error-msg)))
+                 
+                 ;; Check if all sources completed
+                 (when (= completed total-sources)
+                   (puthash 'has-finished t search-state)
+                   (let ((sorted-results (bfepm-search--sort-results 
+                                         (gethash 'all-results search-state) query)))
+                     (bfepm-utils-message "Async search completed: %d results" 
+                                         (length sorted-results))
+                     ;; Cache results
+                     (bfepm-search--update-cache query sorted-results)
+                     (funcall callback t sorted-results nil))))))))))))
 
 (defun bfepm-search--search-source-async (query-regex source-name source-url callback)
   "Search single SOURCE asynchronously using QUERY-REGEX."
@@ -185,7 +291,7 @@ SOURCES defaults to all available archives."
                         (info (cdr package-entry))
                         (result (bfepm-search--create-result-from-archive-entry 
                                 name info source-name)))
-                   (when (bfepm-search--matches-query-p result query-regex)
+                   (when (and result (bfepm-search--matches-query-p result query-regex))
                      (push result results))))
                (funcall callback t results nil))
            (error
@@ -194,24 +300,39 @@ SOURCES defaults to all available archives."
 
 ;; Search result processing
 
+(defun bfepm-search--extract-package-info (info)
+  "Extract package information from archive INFO entry.
+Returns a plist with :version, :dependencies, :description, and :kind."
+  (let ((info-list (if (vectorp info) (append info nil) info)))
+    (list :version (nth 0 info-list)
+          :dependencies (nth 1 info-list)
+          :description (nth 2 info-list)
+          :kind (nth 3 info-list))))
+
 (defun bfepm-search--create-result-from-archive-entry (name info source-name)
   "Create search result from archive entry NAME and INFO."
-  (let* ((info-list (if (vectorp info) (append info nil) info))
-         (version (car info-list))
-         (deps (cadr info-list))
-         (description (caddr info-list))
-         (kind (cadddr info-list))
-         (version-string (bfepm-version-normalize version))
-         (installed-p (bfepm-core-package-installed-p name)))
-    
-    (make-bfepm-search-result
-     :name name
-     :version version-string
-     :description (or description "No description available")
-     :source source-name
-     :dependencies deps
-     :kind kind
-     :installed-p installed-p)))
+  (condition-case err
+      (let* ((package-info (bfepm-search--extract-package-info info))
+             (version (plist-get package-info :version))
+             (deps (plist-get package-info :dependencies))
+             (description (plist-get package-info :description))
+             (kind (plist-get package-info :kind))
+             (version-string (bfepm-version-normalize version))
+             (installed-p (bfepm-core-package-installed-p name)))
+        
+        (make-bfepm-search-result
+         :name name
+         :version version-string
+         :description (or description "No description available")
+         :source source-name
+         :dependencies deps
+         :kind kind
+         :installed-p installed-p))
+    (error
+     (bfepm-utils-message (bfepm-search--format-error-message 
+                          (format "process package %s" name)
+                          (error-message-string err)))
+     nil)))
 
 (defun bfepm-search--build-query-regex (query)
   "Build regex pattern from search QUERY."
@@ -446,7 +567,7 @@ This is a fallback when bfepm-ui is not available."
       (when (and main-file (file-exists-p main-file))
         (condition-case nil
             (with-temp-buffer
-              (insert-file-contents main-file nil 0 4096) ; Read first 4KB for better coverage
+              (insert-file-contents main-file nil 0 bfepm-search--description-read-limit)
               (goto-char (point-min))
               ;; Look for standard Emacs Lisp package header format (case-insensitive)
               ;; Format: ;;; package-name.el --- Description here
