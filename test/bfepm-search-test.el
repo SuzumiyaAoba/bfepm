@@ -184,11 +184,14 @@
               callback-results results
               callback-error error-msg)))
      
-     ;; Wait for async operation (simulate)
-     (while (not callback-called)
-       (sleep-for 0.01))
+     ;; Wait for async operation with timeout
+     (let ((timeout 5.0)             ; 5 second timeout
+           (start-time (current-time)))
+       (while (and (not callback-called)
+                   (< (float-time (time-subtract (current-time) start-time)) timeout))
+         (sleep-for 0.01))
+       (should callback-called))     ; Fail immediately if timeout reached
      
-     (should callback-called)
      (should callback-success)
      (should-not callback-error)
      (should (> (length callback-results) 0))
@@ -218,11 +221,14 @@
                async-results results
                callback-error error-msg)))
       
-      ;; Wait for callback
-      (while (not callback-called)
-        (sleep-for 0.01))
+      ;; Wait for callback with timeout
+      (let ((timeout 5.0)             ; 5 second timeout
+            (start-time (current-time)))
+        (while (and (not callback-called)
+                    (< (float-time (time-subtract (current-time) start-time)) timeout))
+          (sleep-for 0.01))
+        (should callback-called))     ; Fail immediately if timeout reached
       
-      (should callback-called)
       ;; Note: current implementation returns success=true with empty results when all sources fail
       ;; This might be changed in the future to return failure instead
       (should callback-success)
@@ -337,9 +343,13 @@
         (setq callback-called t
               async-results (when success results))))
      
-     ;; Wait for callback
-     (while (not callback-called)
-       (sleep-for 0.01))
+     ;; Wait for callback with timeout
+     (let ((timeout 5.0)             ; 5 second timeout
+           (start-time (current-time)))
+       (while (and (not callback-called)
+                   (< (float-time (time-subtract (current-time) start-time)) timeout))
+         (sleep-for 0.01))
+       (should callback-called))     ; Fail immediately if timeout reached
      
      (should async-results)
      (should (> (length async-results) 0)))))

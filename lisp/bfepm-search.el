@@ -117,11 +117,20 @@ SOURCES defaults to all available archives."
 (defun bfepm-search--fetch-archive-contents-sync (source-url)
   "Fetch archive contents synchronously from SOURCE-URL."
   (let ((archive-file (concat source-url "archive-contents")))
-    (with-temp-buffer
-      (bfepm-utils-message "Fetching archive contents from %s..." archive-file)
-      (url-insert-file-contents archive-file)
-      (goto-char (point-min))
-      (read (current-buffer)))))
+    (condition-case err
+        (with-temp-buffer
+          (bfepm-utils-message "Fetching archive contents from %s..." archive-file)
+          (unless (fboundp 'url-insert-file-contents)
+            (error "url-insert-file-contents not available"))
+          (url-insert-file-contents archive-file)
+          (goto-char (point-min))
+          (let ((contents (read (current-buffer))))
+            (unless (listp contents)
+              (error "Invalid archive format"))
+            contents))
+      (error
+       (bfepm-utils-error "Failed to fetch archive contents from %s: %s"
+                          source-url (error-message-string err))))))
 
 ;; Asynchronous search implementation
 

@@ -831,7 +831,7 @@ KIND specifies the package type (tar or single file)."
 
 (defun bfepm-package-search (query)
   "Search for packages matching QUERY.
-This function is deprecated. Use `bfepm-search' instead."
+This function is deprecated. Use `bfepm-search' directly."
   (bfepm-utils-message "Searching for packages matching: %s" query)
   (when (featurep 'bfepm-search)
     (bfepm-search query)))
