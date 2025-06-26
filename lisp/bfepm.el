@@ -66,6 +66,14 @@
   (error
    (message "Warning: bfepm-profile could not be loaded")))
 
+;; Load bfepm-search module
+(condition-case nil
+    (progn
+      (require 'bfepm-search)
+      (message "BFEPM: bfepm-search loaded successfully"))
+  (error
+   (message "Warning: bfepm-search could not be loaded")))
+
 ;; Declare external functions to avoid compilation warnings
 (declare-function bfepm-package-list "bfepm-package")
 (declare-function bfepm-package-install "bfepm-package")
@@ -83,6 +91,9 @@
 (declare-function bfepm-profile-current "bfepm-profile")
 (declare-function bfepm-profile-list-names "bfepm-profile")
 (declare-function bfepm-ui-show-installed-external "bfepm-ui")
+(declare-function bfepm-search "bfepm-search")
+(declare-function bfepm-search-async "bfepm-search")
+(declare-function bfepm-search-installed-packages "bfepm-search")
 
 (defcustom bfepm-config-file (expand-file-name "bfepm.toml" user-emacs-directory)
   "Path to the main BFEPM configuration file."
@@ -144,6 +155,18 @@ If ASYNC is non-nil, install asynchronously (non-blocking)."
   "Show the BFEPM package management interface."
   (interactive)
   (bfepm-ui))
+
+;;;###autoload
+(defun bfepm-search-packages (query)
+  "Search for packages matching QUERY across available archives."
+  (interactive "sSearch packages: ")
+  (bfepm-search query))
+
+;;;###autoload
+(defun bfepm-search-installed (query)
+  "Search within installed packages matching QUERY."
+  (interactive "sSearch installed packages: ")
+  (bfepm-search-installed-packages query))
 
 ;;;###autoload
 (defun bfepm-init ()
