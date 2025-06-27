@@ -36,6 +36,37 @@
    ((string-match-p "gnu" url) bfepm-search-test--mock-gnu-archive)
    (t nil)))
 
+(defun bfepm-search-test--create-test-result (name version description source &optional installed-p)
+  "Create a test search result with standard defaults."
+  (make-bfepm-search-result
+   :name name
+   :version (or version "1.0.0")
+   :description (or description "Test package description")
+   :source (or source "melpa")
+   :dependencies nil
+   :kind 'tar
+   :installed-p (or installed-p nil)))
+
+(defun bfepm-search-test--run-with-timeout (test-function timeout-seconds)
+  "Run TEST-FUNCTION with TIMEOUT-SECONDS protection.
+Returns (success . result) where success is t/nil and result is the test result or error."
+  (let ((start-time (current-time))
+        (result nil)
+        (success nil))
+    (condition-case err
+        (progn
+          (setq result (funcall test-function))
+          (setq success t))
+      (error
+       (setq result (error-message-string err))))
+    
+    (let ((elapsed (float-time (time-subtract (current-time) start-time))))
+      (when (> elapsed timeout-seconds)
+        (setq success nil)
+        (setq result (format "Test timed out after %.2f seconds" elapsed))))
+    
+    (cons success result)))
+
 (defmacro bfepm-search-test--with-mock-network (&rest body)
   "Execute BODY with mocked network functions."
   `(cl-letf (((symbol-function 'bfepm-search--fetch-archive-contents-sync)
@@ -68,7 +99,16 @@
     (should (string= (bfepm-search-result-source result) "melpa"))
     (should (equal (bfepm-search-result-dependencies result) '((dep1 "1.0") (dep2 "2.0"))))
     (should (eq (bfepm-search-result-kind result) 'tar))
-    (should-not (bfepm-search-result-installed-p result))))
+    (should-not (bfepm-search-result-installed-p result)))
+  
+  ;; Test helper function
+  (let ((helper-result (bfepm-search-test--create-test-result "helper-test" "2.0.0" "Helper test" "gnu" t)))
+    (should (bfepm-search-result-p helper-result))
+    (should (string= (bfepm-search-result-name helper-result) "helper-test"))
+    (should (string= (bfepm-search-result-version helper-result) "2.0.0"))
+    (should (string= (bfepm-search-result-description helper-result) "Helper test"))
+    (should (string= (bfepm-search-result-source helper-result) "gnu"))
+    (should (bfepm-search-result-installed-p helper-result))))
 
 ;;; Query Processing Tests
 
@@ -139,7 +179,7 @@
 (ert-deftest bfepm-search-test-sync-search ()
   "Test complete synchronous search across sources."
   (bfepm-search-test--with-mock-network
-   (let ((results (bfepm-search--search-sync "test" nil)))
+   (let ((results (bfepm-search--search-sync "test" bfepm-search--archive-sources)))
      (should (> (length results) 0))
      
      ;; Should find search-test from both sources
@@ -239,18 +279,10 @@
 (ert-deftest bfepm-search-test-sort-results ()
   "Test result sorting by relevance."
   (let ((results (list
-                  (make-bfepm-search-result
-                   :name "test-package" :description "A test package" 
-                   :version "1.0" :source "melpa" :dependencies nil :kind 'tar :installed-p nil)
-                  (make-bfepm-search-result
-                   :name "package-test" :description "Another package"
-                   :version "1.0" :source "melpa" :dependencies nil :kind 'tar :installed-p nil)
-                  (make-bfepm-search-result
-                   :name "test" :description "Exact match"
-                   :version "1.0" :source "melpa" :dependencies nil :kind 'tar :installed-p nil)
-                  (make-bfepm-search-result
-                   :name "other-pkg" :description "Contains test keyword"
-                   :version "1.0" :source "melpa" :dependencies nil :kind 'tar :installed-p nil))))
+                  (bfepm-search-test--create-test-result "test-package" "1.0" "A test package" "melpa")
+                  (bfepm-search-test--create-test-result "package-test" "1.0" "Another package" "melpa")
+                  (bfepm-search-test--create-test-result "test" "1.0" "Exact match" "melpa")
+                  (bfepm-search-test--create-test-result "other-pkg" "1.0" "Contains test keyword" "melpa"))))
     
     (let ((sorted (bfepm-search--sort-results results "test")))
       ;; Exact name match should be first
@@ -385,7 +417,7 @@
   "Test search performance with large archive data."
   ;; Create a large mock archive
   (let ((large-archive (cl-loop for i from 1 to 1000
-                               collect (list (intern (format "package-%d" i))
+                               collect (cons (intern (format "package-%d" i))
                                            (vector (list 1 0 0) nil
                                                   (format "Description for package %d" i)
                                                   'single)))))
@@ -394,7 +426,7 @@
                (lambda (_url) large-archive)))
       
       (let ((start-time (current-time)))
-        (let ((results (bfepm-search--search-sync "package" nil)))
+        (let ((results (bfepm-search--search-sync "package" '(("test" . "http://test/")))))
           (let ((elapsed (float-time (time-subtract (current-time) start-time))))
             (should (< elapsed 1.0)) ; Should complete in under 1 second
             (should (> (length results) 0))
@@ -412,7 +444,7 @@
          bfepm-search--last-results nil)
    
    ;; First search
-   (let ((results1 (bfepm-search--search-sync "helper" nil)))
+   (let ((results1 (bfepm-search--search-sync "helper" bfepm-search--archive-sources)))
      (should (> (length results1) 0))
      (should (string= bfepm-search--last-query "helper"))
      (should (equal bfepm-search--last-results results1))
