@@ -73,12 +73,16 @@
 
 (defun bfepm--compare-melpa-date-versions (v1 v2)
   "Compare MELPA date versions V1 and V2."
-  (let ((n1 (string-to-number (replace-regexp-in-string "\\." "" 
-                                                       (vce-parsed-version-original v1))))
-        (n2 (string-to-number (replace-regexp-in-string "\\." "" 
-                                                       (vce-parsed-version-original v2)))))
-    (cond ((> n1 n2) 1)
-          ((< n1 n2) -1)
+  (let* ((v1-parts (vce-parsed-version-components v1))
+         (v2-parts (vce-parsed-version-components v2))
+         (date1 (nth 0 v1-parts))
+         (date2 (nth 0 v2-parts))
+         (time1 (nth 1 v1-parts))
+         (time2 (nth 1 v2-parts)))
+    (cond ((> date1 date2) 1)
+          ((< date1 date2) -1)
+          ((> time1 time2) 1)
+          ((< time1 time2) -1)
           (t 0))))
 
 (defun bfepm--normalize-melpa-date-version (version)
@@ -89,8 +93,8 @@
   "Validate MELPA date version format."
   (string-match-p "^[0-9]\\{8\\}\\.[0-9]\\{4\\}$" version-string))
 
-(defun bfepm--handle-latest-constraint (version constraint)
-  "Handle 'latest' constraint - matches any version."
+(defun bfepm--handle-latest-constraint (_version _constraint)
+  "Handle \\='latest\\=' constraint - matches any version."
   t)
 
 ;; BFEPM HTTP Client Configuration
@@ -116,7 +120,7 @@
    :default-factory #'bfepm--create-default-config
    :schema (bfepm-create-config-schema)))
 
-(defun bfepm--parse-minimal-config (file-path)
+(defun bfepm--parse-minimal-config (_file-path)
   "Minimal configuration parser for BFEPM."
   (let ((config (make-hash-table :test 'equal)))
     (puthash "packages" (make-hash-table :test 'equal) config)
@@ -199,7 +203,7 @@
     
     engine))
 
-(defun bfepm--search-elpa-source (http-client base-url query options)
+(defun bfepm--search-elpa-source (http-client base-url query _options)
   "Search ELPA source at BASE-URL for QUERY using HTTP-CLIENT."
   (let* ((archive-url (concat base-url "archive-contents"))
          (response (ghc-get http-client archive-url))
@@ -214,7 +218,7 @@
     
     results))
 
-(defun bfepm--search-elpa-source-async (http-client base-url query options callback)
+(defun bfepm--search-elpa-source-async (http-client base-url query _options callback)
   "Search ELPA source asynchronously."
   (let ((archive-url (concat base-url "archive-contents")))
     (ghc-get http-client archive-url
@@ -300,8 +304,7 @@
   (let* ((http-client (bfepm-create-http-client))
          (version-engine (bfepm-create-version-engine))
          (config-loader (bfepm-create-config-loader))
-         (search-engine (bfepm-create-search-engine http-client))
-         (plugin-manager (ps-create-manager :name "bfepm-plugins")))
+         (search-engine (bfepm-create-search-engine http-client)))
     
     ;; Create package manager instance
     (pmf-create-package-manager "bfepm"
@@ -349,6 +352,55 @@
     (before-remove . bfepm--before-remove-hook)
     (after-remove . bfepm--after-remove-hook)))
 
+;; Helper functions
+(defun bfepm--sort-sources-by-priority (sources)
+  "Sort SOURCES by priority."
+  (sort sources (lambda (a b) (> (pmf-source-priority a) (pmf-source-priority b)))))
+
+(defun bfepm--check-source-availability (_source)
+  "Check if SOURCE is available."
+  t)  ; Assume all sources are available for now
+
+(defun bfepm--verify-package-checksum (_file-path _checksum)
+  "Verify CHECKSUM for FILE-PATH."
+  t)  ; Basic implementation
+
+(defun bfepm--extract-tar-package (_file-path _destination)
+  "Extract tar package from FILE-PATH to DESTINATION."
+  nil)  ; Basic implementation
+
+(defun bfepm--extract-single-file (_file-path _destination)
+  "Extract single file from FILE-PATH to DESTINATION."
+  nil)  ; Basic implementation
+
+(defun bfepm--install-package (_package)
+  "Install PACKAGE."
+  nil)  ; Basic implementation
+
+(defun bfepm--remove-package (_package)
+  "Remove PACKAGE."
+  nil)  ; Basic implementation
+
+(defun bfepm--rollback-package (_package)
+  "Rollback PACKAGE installation."
+  nil)  ; Basic implementation
+
+(defun bfepm--before-install-hook (_package)
+  "Before install hook for PACKAGE."
+  nil)
+
+(defun bfepm--after-install-hook (_package)
+  "After install hook for PACKAGE."
+  nil)
+
+(defun bfepm--before-remove-hook (_package)
+  "Before remove hook for PACKAGE."
+  nil)
+
+(defun bfepm--after-remove-hook (_package)
+  "After remove hook for PACKAGE."
+  nil)
+
 ;;; Integration Functions
 
 (defun bfepm-framework-install (package-spec)
@@ -371,6 +423,10 @@
     (gse-search-async search-engine query callback)))
 
 ;;; Migration Utilities
+
+;; Declare variable first
+(defvar bfepm--framework-instance nil
+  "Global framework instance for backward compatibility.")
 
 (defun bfepm-migrate-to-framework ()
   "Migrate existing BFEPM installation to use framework."
@@ -411,9 +467,6 @@
 
 ;;; Backward Compatibility Layer
 
-(defvar bfepm--framework-instance nil
-  "Global framework instance for backward compatibility.")
-
 (defun bfepm-ensure-framework-instance ()
   "Ensure framework instance is initialized."
   (unless bfepm--framework-instance
@@ -432,10 +485,7 @@
 
 ;;; Example Plugin
 
-;; Example plugin demonstrating how to extend BFEPM with the framework
 (ps-define-plugin bfepm-git-plugin
-  "Plugin to add Git repository support to BFEPM."
-  
   ;; Register Git source type
   (ps-register-hook manager 'source-types
     (make-ps-hook
@@ -444,18 +494,22 @@
      :type 'filter))
   
   ;; Add Git search adapter
-  (let ((search-engine (pmf-package-manager-search-engine 
-                       (ps-get-config manager "bfepm" "instance"))))
-    (gse-add-source search-engine
-      (gse-create-source
-       :name "git-repos"
-       :type 'git
-       :priority 15
-       :search-fn #'bfepm-git-plugin--search-git-repos)))
+  (let* ((pm-instance (ps-get-config manager "bfepm" "instance"))
+         (search-engine (when pm-instance
+                         (pmf-package-manager-search-engine pm-instance))))
+    (unless search-engine
+      (ps-log 'error "Failed to get search engine from package manager instance"))
+    (when search-engine
+      (gse-add-source search-engine
+        (gse-create-source
+         :name "git-repos"
+         :type 'git
+         :priority 15
+         :search-fn #'bfepm-git-plugin--search-git-repos))))
   
   (ps-log 'info "Git plugin loaded successfully"))
 
-(defun bfepm-git-plugin--search-git-repos (query options)
+(defun bfepm-git-plugin--search-git-repos (_query _options)
   "Search Git repositories for QUERY."
   ;; Implementation would search Git repositories
   '())

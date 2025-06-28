@@ -231,11 +231,14 @@
              (= (car v-comp) (car t-comp))      ; Same major
              (= (cadr v-comp) (cadr t-comp))))))) ; Same minor
 
-(defun vce--handle-latest-constraint (version constraint)
+(defun vce--handle-latest-constraint (_version _constraint)
   "Check if VERSION satisfies latest CONSTRAINT (any version)."
   t)
 
 ;;; Engine Management
+
+(defvar *current-engine* nil
+  "Current version constraint engine.")
 
 (defun vce-create-engine (&rest args)
   "Create version constraint engine with ARGS.
@@ -296,7 +299,7 @@ ARGS is a plist with keys matching vce-engine structure slots."
     (dolist (format-entry (vce-engine-version-formats engine))
       (let ((format-spec (cdr format-entry)))
         (when (funcall (vce-version-format-validator format-spec) version-string)
-          (return (funcall (vce-version-format-parser format-spec) version-string)))))
+          (cl-return (funcall (vce-version-format-parser format-spec) version-string)))))
     (error "Unable to parse version: %s" version-string)))
 
 (defun vce-compare-versions (engine v1 v2)

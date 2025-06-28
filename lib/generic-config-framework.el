@@ -114,7 +114,14 @@
     (error (error "Failed to parse TOML file: %s" file-path))))
 
 (defun gcf-parse-toml-fallback (file-path)
-  "Fallback TOML parser for basic TOML files."
+  "Fallback TOML parser for basic TOML files.
+WARNING: This parser only supports a subset of TOML:
+- Basic key-value pairs
+- Simple sections [section]  
+- String, number, and boolean values
+- Simple arrays (comma-separated)
+It does NOT support: multi-line strings, nested tables,
+date/time values, or other advanced TOML features."
   (with-temp-buffer
     (insert-file-contents file-path)
     (goto-char (point-min))
@@ -189,14 +196,11 @@
   (with-temp-buffer
     (insert-file-contents file-path)
     (goto-char (point-min))
-    (let ((config (make-hash-table :test 'equal))
-          (indent-stack '(0))
-          (key-stack '()))
+    (let ((config (make-hash-table :test 'equal)))
       (while (not (eobp))
         (let* ((line (buffer-substring-no-properties
                      (line-beginning-position) (line-end-position)))
-               (trimmed (string-trim line))
-               (indent (- (length line) (length (string-trim-left line)))))
+               (trimmed (string-trim line)))
           (unless (or (string-empty-p trimmed) (string-prefix-p "#" trimmed))
             (when (string-match "^\\([^:]+\\):\\s-*\\(.+\\)?$" trimmed)
               (let ((key (string-trim (match-string 1 trimmed)))
@@ -499,7 +503,7 @@ PATH can be a string key or list of nested keys."
 
 ;;; Configuration Templates
 
-(defun gcf-create-template (name template-string)
+(defun gcf-create-template (_name template-string)
   "Create configuration template with NAME and TEMPLATE-STRING."
   (lambda (context)
     (let ((result template-string))

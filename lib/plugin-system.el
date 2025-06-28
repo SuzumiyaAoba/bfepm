@@ -158,7 +158,7 @@
      (message "Failed to parse plugin file %s: %s" file-path (error-message-string err))
      nil)))
 
-(defun ps--extract-plugin-metadata (buffer file-path)
+(defun ps--extract-plugin-metadata (_buffer file-path)
   "Extract plugin metadata from BUFFER for FILE-PATH."
   (let ((metadata (make-hash-table :test 'equal)))
     (goto-char (point-min))
@@ -214,7 +214,7 @@
     
     (when (eq (ps-plugin-state spec) 'loaded)
       (message "Plugin %s already loaded" plugin-name)
-      (return))
+      (cl-return))
     
     ;; Check dependencies
     (ps--resolve-dependencies manager spec)
@@ -269,7 +269,7 @@
                   :cleanup-functions '())))
     (setf (ps-plugin-context spec) context)))
 
-(defun ps--build-api-registry (manager)
+(defun ps--build-api-registry (_manager)
   "Build API registry for plugins in MANAGER."
   (let ((api (make-hash-table :test 'equal)))
     ;; Add core API functions
@@ -281,10 +281,9 @@
     (puthash 'ps-set-config api #'ps-set-config)
     api))
 
-(defun ps--calculate-permissions (manager spec)
+(defun ps--calculate-permissions (_manager spec)
   "Calculate permissions for plugin SPEC in MANAGER."
-  (let ((capabilities (ps-plugin-capabilities spec))
-        (policy (ps-manager-security-policy manager)))
+  (let ((capabilities (ps-plugin-capabilities spec)))
     ;; Default permissions based on capabilities
     (append '(basic-api)
             (when (member 'file-access capabilities) '(file-read file-write))
@@ -304,7 +303,7 @@
     
     (when (eq (ps-plugin-state plugin) 'enabled)
       (message "Plugin %s already enabled" plugin-name)
-      (return))
+      (cl-return))
     
     ;; Run enable hooks
     (ps--run-plugin-hooks manager plugin 'enable)
@@ -319,7 +318,7 @@
     
     (when (eq (ps-plugin-state plugin) 'disabled)
       (message "Plugin %s already disabled" plugin-name)
-      (return))
+      (cl-return))
     
     ;; Run disable hooks
     (ps--run-plugin-hooks manager plugin 'disable)
@@ -341,7 +340,7 @@
     (remhash plugin-name (ps-manager-plugins manager))
     (message "Unloaded plugin: %s" plugin-name)))
 
-(defun ps--cleanup-plugin (manager plugin)
+(defun ps--cleanup-plugin (_manager plugin)
   "Cleanup resources for PLUGIN in MANAGER."
   (when-let ((context (ps-plugin-context plugin)))
     ;; Run cleanup functions
@@ -500,11 +499,12 @@
 ;;; Plugin Definition Macro
 
 (defmacro ps-define-plugin (name &rest body)
-  "Define a plugin with NAME and BODY."
+  "Define a plugin with NAME and BODY.
+Note: This only creates the plugin specification. You must still
+register it with a plugin manager using `ps-register-plugin'."
   (declare (indent 1))
   `(progn
      (defun ,(intern (format "%s--plugin-main" name)) (manager)
-       "Plugin main entry point."
        ,@body)
      
      (defvar ,(intern (format "%s--plugin-spec" name))
@@ -546,7 +546,7 @@
 (define-error 'ps-dependency-error "Plugin Dependency Error" 'ps-error)
 
 (defun ps-error (format-string &rest args)
-  "Signal plugin system error with formatted message."
+  "Signal a plugin system error with FORMAT-STRING and ARGS."
   (signal 'ps-error (list (apply #'format format-string args))))
 
 (provide 'plugin-system)

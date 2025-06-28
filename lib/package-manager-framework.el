@@ -190,7 +190,7 @@ This is the main entry point for a package manager implementation."
   (let* ((extension (file-name-extension config-path))
          (parser (cdr (assoc extension (pmf-config-loader-supported-formats loader)))))
     (if parser
-        (condition-case err
+        (condition-case _err
             (let ((config (funcall parser config-path)))
               (pmf-config-validate loader config))
           (error
@@ -325,11 +325,12 @@ Additional ARGS are passed to make-pmf-source-manager."
 
 ;;; Integration Helpers
 
+(defvar pmf-registered-backends (make-hash-table :test 'equal)
+  "Registry of package manager backends.")
+
 (defun pmf-register-backend (type backend)
   "Register a BACKEND for package manager TYPE.
 This allows different package manager implementations to be discovered."
-  (unless (boundp 'pmf-registered-backends)
-    (setq pmf-registered-backends (make-hash-table :test 'equal)))
   (puthash type backend pmf-registered-backends))
 
 (defun pmf-get-backend (type)

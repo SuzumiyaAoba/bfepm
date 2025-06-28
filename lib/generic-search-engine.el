@@ -316,13 +316,11 @@ CALLBACK is called with (success results error-message)."
   (let* ((sources (gse--filter-sources engine query))
          (available-sources (cl-remove-if-not #'gse--check-source-availability sources))
          (total-sources (length available-sources))
-         (completed-sources 0)
-         (all-results '())
          (search-state (make-hash-table :test 'equal)))
     
     (when (= total-sources 0)
       (funcall callback nil nil "No available sources for search")
-      (return))
+      (cl-return))
     
     ;; Initialize search state
     (puthash 'results '() search-state)
@@ -332,7 +330,7 @@ CALLBACK is called with (success results error-message)."
     ;; Search each source asynchronously
     (dolist (source available-sources)
       (gse--search-source-async source query
-        (lambda (success results error-msg)
+        (lambda (success results _error-msg)
           (unless (gethash 'finished-p search-state)
             (let ((completed (1+ (gethash 'completed search-state))))
               (puthash 'completed completed search-state)

@@ -290,7 +290,7 @@
           (url-request-data (ghc-request-body request)))
       
       (url-retrieve url
-                    (lambda (status)
+                    (lambda (_status)
                       (let ((response (condition-case err
                                         (ghc--parse-response (current-buffer) url)
                                       (error
@@ -344,6 +344,8 @@
                        ('sha1 "sha1sum")
                        ('sha256 "sha256sum")
                        (_ (error "Unsupported hash algorithm: %s" algorithm)))))
+    (unless (executable-find hash-program)
+      (error "Checksum program '%s' not found in PATH" hash-program))
     (with-temp-buffer
       (call-process hash-program nil t nil file-path)
       (goto-char (point-min))
