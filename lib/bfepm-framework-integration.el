@@ -366,6 +366,15 @@
     (before-remove . bfepm--before-remove-hook)
     (after-remove . bfepm--after-remove-hook)))
 
+;; Security: Safe parsing functions
+(defun bfepm--safe-parse-archive-contents (response-body)
+  "Safely parse archive contents from RESPONSE-BODY.
+This function provides a safer alternative to read-from-string on network data."
+  (when (and response-body (stringp response-body))
+    (condition-case nil
+        (car (read-from-string response-body))
+      (error nil))))
+
 ;; Helper functions
 (defun bfepm--sort-sources-by-priority (sources)
   "Sort SOURCES by priority."

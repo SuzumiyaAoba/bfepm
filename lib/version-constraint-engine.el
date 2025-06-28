@@ -231,7 +231,9 @@
              (>= (length v-comp) 2)             ; Ensure at least major.minor
              (>= (length t-comp) 2)             ; Ensure at least major.minor
              (= (car v-comp) (car t-comp))      ; Same major
-             (= (cadr v-comp) (cadr t-comp))))))) ; Same minor
+             (or (< (length t-comp) 2)           ; Target has no minor version
+                 (< (length v-comp) 2)           ; Version has no minor version  
+                 (= (cadr v-comp) (cadr t-comp)))))))) ; Same minor
 
 (defun vce--handle-latest-constraint (_version _constraint)
   "Check if VERSION satisfies latest CONSTRAINT (any version)."
