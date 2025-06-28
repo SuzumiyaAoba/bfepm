@@ -206,36 +206,37 @@
 
 (defun ps-load-plugin (manager plugin-name)
   "Load plugin named PLUGIN-NAME using MANAGER."
-  (let* ((registry (ps-manager-plugin-registry manager))
-         (spec (gethash plugin-name registry)))
-    
-    (unless spec
-      (error "Plugin not found: %s" plugin-name))
-    
-    (when (eq (ps-plugin-state spec) 'loaded)
-      (message "Plugin %s already loaded" plugin-name)
-      (cl-return-from ps-load-plugin nil))
-    
-    ;; Check dependencies
-    (ps--resolve-dependencies manager spec)
-    
-    ;; Check API compatibility
-    (ps--check-api-compatibility manager spec)
-    
-    ;; Load plugin file
-    (condition-case err
-        (progn
-          (ps--setup-plugin-context manager spec)
-          (load (ps-plugin-load-path spec) nil t)
-          (ps--initialize-plugin manager spec)
-          (setf (ps-plugin-state spec) 'loaded)
-          (setf (ps-plugin-load-time spec) (current-time))
-          (puthash plugin-name spec (ps-manager-plugins manager))
-          (message "Loaded plugin: %s" plugin-name))
-      (error
-       (setf (ps-plugin-state spec) 'error)
-       (setf (ps-plugin-error-info spec) (error-message-string err))
-       (error "Failed to load plugin %s: %s" plugin-name (error-message-string err))))))
+  (cl-block ps-load-plugin
+    (let* ((registry (ps-manager-plugin-registry manager))
+           (spec (gethash plugin-name registry)))
+      
+      (unless spec
+        (error "Plugin not found: %s" plugin-name))
+      
+      (when (eq (ps-plugin-state spec) 'loaded)
+        (message "Plugin %s already loaded" plugin-name)
+        (cl-return-from ps-load-plugin nil))
+      
+      ;; Check dependencies
+      (ps--resolve-dependencies manager spec)
+      
+      ;; Check API compatibility
+      (ps--check-api-compatibility manager spec)
+      
+      ;; Load plugin file
+      (condition-case err
+          (progn
+            (ps--setup-plugin-context manager spec)
+            (load (ps-plugin-load-path spec) nil t)
+            (ps--initialize-plugin manager spec)
+            (setf (ps-plugin-state spec) 'loaded)
+            (setf (ps-plugin-load-time spec) (current-time))
+            (puthash plugin-name spec (ps-manager-plugins manager))
+            (message "Loaded plugin: %s" plugin-name))
+        (error
+         (setf (ps-plugin-state spec) 'error)
+         (setf (ps-plugin-error-info spec) (error-message-string err))
+         (error "Failed to load plugin %s: %s" plugin-name (error-message-string err)))))))
 
 (defun ps--resolve-dependencies (manager spec)
   "Resolve dependencies for plugin SPEC using MANAGER."
@@ -297,33 +298,35 @@
 
 (defun ps-enable-plugin (manager plugin-name)
   "Enable plugin named PLUGIN-NAME in MANAGER."
-  (let ((plugin (gethash plugin-name (ps-manager-plugins manager))))
-    (unless plugin
-      (error "Plugin not loaded: %s" plugin-name))
-    
-    (when (eq (ps-plugin-state plugin) 'enabled)
-      (message "Plugin %s already enabled" plugin-name)
-      (cl-return-from ps-enable-plugin nil))
-    
-    ;; Run enable hooks
-    (ps--run-plugin-hooks manager plugin 'enable)
-    (setf (ps-plugin-state plugin) 'enabled)
-    (message "Enabled plugin: %s" plugin-name)))
+  (cl-block ps-enable-plugin
+    (let ((plugin (gethash plugin-name (ps-manager-plugins manager))))
+      (unless plugin
+        (error "Plugin not loaded: %s" plugin-name))
+      
+      (when (eq (ps-plugin-state plugin) 'enabled)
+        (message "Plugin %s already enabled" plugin-name)
+        (cl-return-from ps-enable-plugin nil))
+      
+      ;; Run enable hooks
+      (ps--run-plugin-hooks manager plugin 'enable)
+      (setf (ps-plugin-state plugin) 'enabled)
+      (message "Enabled plugin: %s" plugin-name))))
 
 (defun ps-disable-plugin (manager plugin-name)
   "Disable plugin named PLUGIN-NAME in MANAGER."
-  (let ((plugin (gethash plugin-name (ps-manager-plugins manager))))
-    (unless plugin
-      (error "Plugin not loaded: %s" plugin-name))
-    
-    (when (eq (ps-plugin-state plugin) 'disabled)
-      (message "Plugin %s already disabled" plugin-name)
-      (cl-return-from ps-disable-plugin nil))
-    
-    ;; Run disable hooks
-    (ps--run-plugin-hooks manager plugin 'disable)
-    (setf (ps-plugin-state plugin) 'disabled)
-    (message "Disabled plugin: %s" plugin-name)))
+  (cl-block ps-disable-plugin
+    (let ((plugin (gethash plugin-name (ps-manager-plugins manager))))
+      (unless plugin
+        (error "Plugin not loaded: %s" plugin-name))
+      
+      (when (eq (ps-plugin-state plugin) 'disabled)
+        (message "Plugin %s already disabled" plugin-name)
+        (cl-return-from ps-disable-plugin nil))
+      
+      ;; Run disable hooks
+      (ps--run-plugin-hooks manager plugin 'disable)
+      (setf (ps-plugin-state plugin) 'disabled)
+      (message "Disabled plugin: %s" plugin-name))))
 
 (defun ps-unload-plugin (manager plugin-name)
   "Unload plugin named PLUGIN-NAME from MANAGER."

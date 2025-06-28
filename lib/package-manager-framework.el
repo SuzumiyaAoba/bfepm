@@ -341,7 +341,11 @@ This allows different package manager implementations to be discovered."
 (defun pmf-list-backends ()
   "List all registered package manager backends."
   (when (boundp 'pmf-registered-backends)
-    (hash-table-keys pmf-registered-backends)))
+    (if (fboundp 'hash-table-keys)
+        (hash-table-keys pmf-registered-backends)
+      (let ((keys '()))
+        (maphash (lambda (key _value) (push key keys)) pmf-registered-backends)
+        keys))))
 
 (provide 'package-manager-framework)
 

@@ -298,11 +298,12 @@ ARGS is a plist with keys matching vce-engine structure slots."
         (when format-spec
           (funcall (vce-version-format-parser format-spec) version-string)))
     ;; Auto-detect format
-    (dolist (format-entry (vce-engine-version-formats engine))
-      (let ((format-spec (cdr format-entry)))
-        (when (funcall (vce-version-format-validator format-spec) version-string)
-          (cl-return-from vce-parse-version (funcall (vce-version-format-parser format-spec) version-string)))))
-    (error "Unable to parse version: %s" version-string)))
+    (cl-block vce-parse-version
+      (dolist (format-entry (vce-engine-version-formats engine))
+        (let ((format-spec (cdr format-entry)))
+          (when (funcall (vce-version-format-validator format-spec) version-string)
+            (cl-return-from vce-parse-version (funcall (vce-version-format-parser format-spec) version-string)))))
+      (error "Unable to parse version: %s" version-string))))
 
 (defun vce-compare-versions (engine v1 v2)
   "Compare versions V1 and V2 using ENGINE."
@@ -446,7 +447,11 @@ ARGS is a plist with keys matching vce-engine structure slots."
 
 (defun vce-list-engines ()
   "List all registered engine names."
-  (hash-table-keys vce--registered-engines))
+  (if (fboundp 'hash-table-keys)
+      (hash-table-keys vce--registered-engines)
+    (let ((keys '()))
+      (maphash (lambda (key _value) (push key keys)) vce--registered-engines)
+      keys)))
 
 (provide 'version-constraint-engine)
 

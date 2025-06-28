@@ -223,7 +223,11 @@
 (defun gse--cleanup-cache-entries (cache-manager)
   "Remove old cache entries to free space."
   (let* ((cache-store (gse-cache-manager-cache-store cache-manager))
-         (entries (hash-table-keys cache-store))
+         (entries (if (fboundp 'hash-table-keys)
+                     (hash-table-keys cache-store)
+                   (let ((keys '()))
+                     (maphash (lambda (key _value) (push key keys)) cache-store)
+                     keys)))
          (sorted-entries (sort entries
                               (lambda (a b)
                                 (< (car (gethash a cache-store))
