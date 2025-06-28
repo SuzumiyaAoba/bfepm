@@ -328,10 +328,12 @@ Additional ARGS are passed to make-pmf-source-manager."
 (defvar pmf-registered-backends (make-hash-table :test 'equal)
   "Registry of package manager backends.")
 
-(defun pmf-register-backend (type backend)
+(defun pmf-register-backend (type backend &optional registry)
   "Register a BACKEND for package manager TYPE.
-This allows different package manager implementations to be discovered."
-  (puthash type backend pmf-registered-backends))
+This allows different package manager implementations to be discovered.
+If REGISTRY is provided, use it instead of the global registry."
+  (let ((reg (or registry pmf-registered-backends)))
+    (puthash type backend reg)))
 
 (defun pmf-get-backend (type)
   "Get registered backend for TYPE."
