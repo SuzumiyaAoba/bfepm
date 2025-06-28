@@ -511,7 +511,7 @@ PATH can be a string key or list of nested keys."
         (let ((var-name (car var))
               (var-value (cdr var)))
           (setq result (replace-regexp-in-string
-                       (format "{{%s}}" var-name)
+                       (regexp-quote (format "{{%s}}" var-name))
                        (format "%s" var-value)
                        result))))
       result)))

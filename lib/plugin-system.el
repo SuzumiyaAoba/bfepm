@@ -214,7 +214,7 @@
     
     (when (eq (ps-plugin-state spec) 'loaded)
       (message "Plugin %s already loaded" plugin-name)
-      (cl-return))
+      (cl-return-from ps-load-plugin nil))
     
     ;; Check dependencies
     (ps--resolve-dependencies manager spec)
@@ -303,7 +303,7 @@
     
     (when (eq (ps-plugin-state plugin) 'enabled)
       (message "Plugin %s already enabled" plugin-name)
-      (cl-return))
+      (cl-return-from ps-enable-plugin nil))
     
     ;; Run enable hooks
     (ps--run-plugin-hooks manager plugin 'enable)
@@ -318,7 +318,7 @@
     
     (when (eq (ps-plugin-state plugin) 'disabled)
       (message "Plugin %s already disabled" plugin-name)
-      (cl-return))
+      (cl-return-from ps-disable-plugin nil))
     
     ;; Run disable hooks
     (ps--run-plugin-hooks manager plugin 'disable)

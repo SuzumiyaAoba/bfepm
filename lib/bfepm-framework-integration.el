@@ -210,7 +210,10 @@
          (results '()))
     
     (when (= (ghc-response-status-code response) 200)
-      (let ((archive-contents (read-from-string (ghc-response-body response))))
+      (let ((archive-contents (condition-case nil
+                                    (car (read-from-string (ghc-response-body response)))
+                                  (error
+                                   (error "Failed to parse archive contents safely")))))
         (dolist (package-entry archive-contents)
           (when (bfepm--package-matches-query-p package-entry query)
             (push (bfepm--create-search-result-from-package package-entry base-url) 
@@ -226,7 +229,11 @@
         (if (= (ghc-response-status-code response) 200)
             (let ((results '()))
               (condition-case err
-                  (let ((archive-contents (read-from-string (ghc-response-body response))))
+                  (let ((archive-contents (condition-case nil
+                                            (car (read-from-string (ghc-response-body response)))
+                                          (error
+                                           (funcall callback nil nil "Failed to parse archive contents safely")
+                                           (cl-return-from bfepm--search-elpa-source-async)))))
                     (dolist (package-entry archive-contents)
                       (when (bfepm--package-matches-query-p package-entry query)
                         (push (bfepm--create-search-result-from-package package-entry base-url)
@@ -242,9 +249,10 @@
   (let* ((package-name (symbol-name (car package-entry)))
          (package-info (cdr package-entry))
          (description (when (vectorp package-info) (aref package-info 2)))
-         (query-lower (downcase query)))
-    (or (string-match-p query-lower (downcase package-name))
-        (and description (string-match-p query-lower (downcase description))))))
+         (query-lower (downcase query))
+         (escaped-query (regexp-quote query-lower)))
+    (or (string-match-p escaped-query (downcase package-name))
+        (and description (string-match-p escaped-query (downcase description))))))
 
 (defun bfepm--create-search-result-from-package (package-entry source-url)
   "Create search result from PACKAGE-ENTRY and SOURCE-URL."
@@ -274,6 +282,7 @@
   "Calculate relevance score for RESULT given QUERY."
   (let ((title (downcase (gse-result-title result)))
         (description (downcase (gse-result-description result)))
+        (escaped-query (regexp-quote query))
         (score 0.0))
     
     ;; Exact match gets highest score
@@ -285,11 +294,11 @@
       (setq score (+ score 50.0)))
     
     ;; Title contains query
-    (when (string-match-p query title)
+    (when (string-match-p escaped-query title)
       (setq score (+ score 25.0)))
     
     ;; Description contains query
-    (when (string-match-p query description)
+    (when (string-match-p escaped-query description)
       (setq score (+ score 10.0)))
     
     ;; Source priority (MELPA preferred)

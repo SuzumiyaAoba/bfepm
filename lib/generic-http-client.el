@@ -339,18 +339,9 @@
 
 (defun ghc--calculate-checksum (file-path algorithm)
   "Calculate checksum of FILE-PATH using ALGORITHM."
-  (let ((hash-program (pcase algorithm
-                       ('md5 "md5sum")
-                       ('sha1 "sha1sum")
-                       ('sha256 "sha256sum")
-                       (_ (error "Unsupported hash algorithm: %s" algorithm)))))
-    (unless (executable-find hash-program)
-      (error "Checksum program '%s' not found in PATH" hash-program))
-    (with-temp-buffer
-      (call-process hash-program nil t nil file-path)
-      (goto-char (point-min))
-      (when (re-search-forward "^\\([a-fA-F0-9]+\\)" nil t)
-        (match-string 1)))))
+  (with-temp-buffer
+    (insert-file-contents-literally file-path)
+    (secure-hash algorithm (current-buffer))))
 
 (defun ghc--ensure-directory (dir)
   "Ensure directory DIR exists."

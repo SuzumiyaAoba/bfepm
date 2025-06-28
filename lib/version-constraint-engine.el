@@ -228,6 +228,8 @@
       (let ((v-comp (vce-parsed-version-components version))
             (t-comp (vce-parsed-version-components target)))
         (and (>= (vce--compare-versions version target) 0)
+             (>= (length v-comp) 2)             ; Ensure at least major.minor
+             (>= (length t-comp) 2)             ; Ensure at least major.minor
              (= (car v-comp) (car t-comp))      ; Same major
              (= (cadr v-comp) (cadr t-comp))))))) ; Same minor
 
@@ -299,7 +301,7 @@ ARGS is a plist with keys matching vce-engine structure slots."
     (dolist (format-entry (vce-engine-version-formats engine))
       (let ((format-spec (cdr format-entry)))
         (when (funcall (vce-version-format-validator format-spec) version-string)
-          (cl-return (funcall (vce-version-format-parser format-spec) version-string)))))
+          (cl-return-from vce-parse-version (funcall (vce-version-format-parser format-spec) version-string)))))
     (error "Unable to parse version: %s" version-string)))
 
 (defun vce-compare-versions (engine v1 v2)
