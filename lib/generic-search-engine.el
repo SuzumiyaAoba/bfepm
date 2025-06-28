@@ -317,49 +317,50 @@ CALLBACK is called with (success results error-message)."
 
 (defun gse--search-async-internal (engine query cache-manager cache-key callback)
   "Internal async search implementation."
-  (let* ((sources (gse--filter-sources engine query))
-         (available-sources (cl-remove-if-not #'gse--check-source-availability sources))
-         (total-sources (length available-sources))
-         (search-state (make-hash-table :test 'equal)))
-    
-    (when (= total-sources 0)
-      (funcall callback nil nil "No available sources for search")
-      (cl-return))
-    
-    ;; Initialize search state
-    (puthash 'results '() search-state)
-    (puthash 'completed 0 search-state)
-    (puthash 'finished-p nil search-state)
-    
-    ;; Search each source asynchronously
-    (dolist (source available-sources)
-      (gse--search-source-async source query
-        (lambda (success results _error-msg)
-          (unless (gethash 'finished-p search-state)
-            (let ((completed (1+ (gethash 'completed search-state))))
-              (puthash 'completed completed search-state)
-              
-              (when success
-                (puthash 'results 
-                        (append (gethash 'results search-state) results)
-                        search-state))
-              
-              ;; Update progress
-              (when-let ((tracker (gse-engine-progress-tracker engine)))
-                (funcall tracker completed total-sources))
-              
-              ;; Check if all sources completed
-              (when (= completed total-sources)
-                (puthash 'finished-p t search-state)
-                (let ((final-results (gse--process-results 
-                                     engine 
-                                     (gethash 'results search-state) 
-                                     query)))
-                  ;; Cache results
-                  (when cache-manager
-                    (gse--cache-put cache-manager cache-key final-results))
-                  
-                  (funcall callback t final-results nil))))))))))
+  (cl-block gse--search-async-internal
+    (let* ((sources (gse--filter-sources engine query))
+           (available-sources (cl-remove-if-not #'gse--check-source-availability sources))
+           (total-sources (length available-sources))
+           (search-state (make-hash-table :test 'equal)))
+      
+      (when (= total-sources 0)
+        (funcall callback nil nil "No available sources for search")
+        (cl-return-from gse--search-async-internal))
+      
+      ;; Initialize search state
+      (puthash 'results '() search-state)
+      (puthash 'completed 0 search-state)
+      (puthash 'finished-p nil search-state)
+      
+      ;; Search each source asynchronously
+      (dolist (source available-sources)
+        (gse--search-source-async source query
+          (lambda (success results _error-msg)
+            (unless (gethash 'finished-p search-state)
+              (let ((completed (1+ (gethash 'completed search-state))))
+                (puthash 'completed completed search-state)
+                
+                (when success
+                  (puthash 'results 
+                          (append (gethash 'results search-state) results)
+                          search-state))
+                
+                ;; Update progress
+                (when-let ((tracker (gse-engine-progress-tracker engine)))
+                  (funcall tracker completed total-sources))
+                
+                ;; Check if all sources completed
+                (when (= completed total-sources)
+                  (puthash 'finished-p t search-state)
+                  (let ((final-results (gse--process-results 
+                                       engine 
+                                       (gethash 'results search-state) 
+                                       query)))
+                    ;; Cache results
+                    (when cache-manager
+                      (gse--cache-put cache-manager cache-key final-results))
+                    
+                    (funcall callback t final-results nil)))))))))))
 
 (defun gse--search-source-async (source query callback)
   "Search SOURCE asynchronously with QUERY, calling CALLBACK with results."

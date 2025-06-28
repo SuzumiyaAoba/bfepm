@@ -211,7 +211,9 @@
     
     (when (= (ghc-response-status-code response) 200)
       (let ((archive-contents (condition-case nil
-                                    (car (read-from-string (ghc-response-body response)))
+                                    (let ((response-body (ghc-response-body response)))
+                                      (when (and response-body (stringp response-body))
+                                        (car (read-from-string response-body))))
                                   (error
                                    (error "Failed to parse archive contents safely")))))
         (dolist (package-entry archive-contents)
@@ -227,20 +229,23 @@
     (ghc-get http-client archive-url
       (lambda (response)
         (if (= (ghc-response-status-code response) 200)
-            (let ((results '()))
-              (condition-case err
-                  (let ((archive-contents (condition-case nil
-                                            (car (read-from-string (ghc-response-body response)))
-                                          (error
-                                           (funcall callback nil nil "Failed to parse archive contents safely")
-                                           (cl-return-from bfepm--search-elpa-source-async)))))
-                    (dolist (package-entry archive-contents)
-                      (when (bfepm--package-matches-query-p package-entry query)
-                        (push (bfepm--create-search-result-from-package package-entry base-url)
-                              results)))
-                    (funcall callback t results nil))
-                (error
-                 (funcall callback nil nil (error-message-string err)))))
+            (condition-case err
+                (let* ((response-body (ghc-response-body response))
+                       (archive-contents (when (and response-body (stringp response-body))
+                                           (condition-case nil
+                                               (car (read-from-string response-body))
+                                             (error nil))))
+                       (results '()))
+                  (if archive-contents
+                      (progn
+                        (dolist (package-entry archive-contents)
+                          (when (bfepm--package-matches-query-p package-entry query)
+                            (push (bfepm--create-search-result-from-package package-entry base-url)
+                                  results)))
+                        (funcall callback t results nil))
+                    (funcall callback nil nil "Failed to parse archive contents safely")))
+              (error
+               (funcall callback nil nil (error-message-string err))))
           (funcall callback nil nil (format "HTTP error: %d" 
                                            (ghc-response-status-code response))))))))
 
