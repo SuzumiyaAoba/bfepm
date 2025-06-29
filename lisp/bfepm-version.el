@@ -26,7 +26,24 @@
 
 (require 'cl-lib)
 
-;; Constants for version pattern matching
+;; Try to load version-constraint-engine from lib directory
+(condition-case nil
+    (require 'version-constraint-engine)
+  (error
+   (message "Warning: version-constraint-engine not available, using built-in version handling")))
+
+;; Global version constraint engine
+(defvar bfepm-version--engine nil
+  "Version constraint engine instance for BFEPM.")
+
+;; Forward declare VCE functions to avoid warnings
+(declare-function vce-create-engine "version-constraint-engine")
+(declare-function vce-compare-versions "version-constraint-engine")
+(declare-function vce-satisfies-p "version-constraint-engine")
+(declare-function vce-find-best-match "version-constraint-engine")
+(declare-function vce-sort-versions "version-constraint-engine")
+
+;; Constants for version pattern matching (fallback)
 (defconst bfepm-version--melpa-date-pattern "^[0-9]\\{8\\}\\.[0-9]\\{4\\}$"
   "Pattern for MELPA date versions (YYYYMMDD.HHMM format).")
 
@@ -36,12 +53,31 @@
 (defconst bfepm-version--year-length 4
   "Length of year component in date versions.")
 
+(defun bfepm-version--ensure-engine ()
+  "Ensure version constraint engine is initialized."
+  (unless bfepm-version--engine
+    (if (fboundp 'vce-create-engine)
+        (setq bfepm-version--engine
+              (vce-create-engine :name "bfepm-version"))
+      ;; Fallback: use a simple marker to indicate fallback mode
+      (setq bfepm-version--engine 'fallback))))
+
 (defun bfepm-version-compare (v1 v2)
   "Compare version strings V1 and V2.
 Return 1 if V1 > V2, -1 if V1 < V2, 0 if equal.
 
 Supports both semantic versions (e.g., '1.2.3') and MELPA date versions
 (e.g., '20250426.1319')."
+  (bfepm-version--ensure-engine)
+  (if (and (not (eq bfepm-version--engine 'fallback))
+           (fboundp 'vce-compare-versions))
+      ;; Use version-constraint-engine if available
+      (vce-compare-versions bfepm-version--engine v1 v2)
+    ;; Fallback implementation
+    (bfepm-version--compare-fallback v1 v2)))
+
+(defun bfepm-version--compare-fallback (v1 v2)
+  "Fallback version comparison implementation."
   (if (and (bfepm-version--is-melpa-date-version-p v1)
            (bfepm-version--is-melpa-date-version-p v2))
       ;; Both are MELPA date versions
@@ -75,6 +111,20 @@ REQUIREMENT can be:
 - Tilde constraint (e.g., \\='~1.2.3\\=') - patch level changes only
 
 Returns t if VERSION satisfies REQUIREMENT, nil otherwise."
+  (bfepm-version--ensure-engine)
+  (if (and (not (eq bfepm-version--engine 'fallback))
+           (fboundp 'vce-satisfies-p))
+      ;; Use version-constraint-engine if available
+      (vce-satisfies-p bfepm-version--engine version requirement)
+    ;; Fallback implementation
+    (bfepm-version--satisfies-p-fallback version requirement)))
+
+(defun bfepm-version--is-melpa-date-version-p (version)
+  "Check if VERSION is a MELPA date version (YYYYMMDD.HHMM format)."
+  (string-match-p bfepm-version--melpa-date-pattern version))
+
+(defun bfepm-version--satisfies-p-fallback (version requirement)
+  "Fallback implementation for version constraint satisfaction."
   (cond
    ((string= requirement "latest") t)
    ((string-prefix-p "^" requirement)
@@ -82,10 +132,6 @@ Returns t if VERSION satisfies REQUIREMENT, nil otherwise."
    ((string-prefix-p "~" requirement)
     (bfepm-version--satisfies-tilde-p version (substring requirement 1)))
    (t (string= version requirement))))
-
-(defun bfepm-version--is-melpa-date-version-p (version)
-  "Check if VERSION is a MELPA date version (YYYYMMDD.HHMM format)."
-  (string-match-p bfepm-version--melpa-date-pattern version))
 
 (defun bfepm-version--satisfies-caret-p (version requirement)
   "Check if VERSION satisfies caret REQUIREMENT (^).
@@ -197,6 +243,26 @@ CONSTRAINT should be the result of `bfepm-version-parse-constraint'."
 AVAILABLE-VERSIONS is a list of version strings.
 CONSTRAINTS is a list of constraint strings.
 Returns the highest version that satisfies all constraints, or nil if none."
+  (bfepm-version--ensure-engine)
+  (if (and (not (eq bfepm-version--engine 'fallback))
+           (fboundp 'vce-satisfies-p)
+           (fboundp 'vce-sort-versions))
+      ;; Use version-constraint-engine for all cases
+      (let ((matching-versions
+             (cl-remove-if-not
+              (lambda (version)
+                (cl-every (lambda (constraint)
+                            (vce-satisfies-p bfepm-version--engine version constraint))
+                          constraints))
+              available-versions)))
+        (when matching-versions
+          ;; Sort descending to get the highest version first
+          (car (vce-sort-versions bfepm-version--engine matching-versions t))))
+    ;; Fallback implementation
+    (bfepm-version--find-best-match-fallback available-versions constraints)))
+
+(defun bfepm-version--find-best-match-fallback (available-versions constraints)
+  "Fallback implementation for finding best matching version."
   (let ((matching-versions
          (cl-remove-if-not
           (lambda (version)
