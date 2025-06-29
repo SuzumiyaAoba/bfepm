@@ -51,8 +51,7 @@
           (setq bfepm-config--framework
                 (gcf-create-framework 
                  :name "bfepm-config"
-                 :supported-formats '(("toml" . bfepm-config--parse-toml-file)
-                                     ("json" . bfepm-config--parse-json-file))
+                 :supported-formats (bfepm-config--get-supported-formats)
                  :fallback-loader #'bfepm-config--fallback-loader))
           ;; Add BFEPM-specific validators
           (gcf-add-validator bfepm-config--framework #'bfepm-config--validate-sources)
@@ -61,6 +60,14 @@
           (gcf-set-default-factory bfepm-config--framework #'bfepm-config-create-default))
       ;; Fallback: use a simple marker to indicate fallback mode
       (setq bfepm-config--framework 'fallback))))
+
+(defun bfepm-config--get-supported-formats ()
+  "Get list of supported configuration formats based on available libraries."
+  (let ((formats '(("toml" . bfepm-config--parse-toml-file))))
+    ;; Only add JSON support if json library is available
+    (when (fboundp 'json-parse-string)
+      (push '("json" . bfepm-config--parse-json-file) formats))
+    formats))
 
 (defvar bfepm-config--default-sources
   `(("melpa" . ,(make-bfepm-source
@@ -340,9 +347,38 @@ CONFIG is the configuration structure to validate."
   t)
 
 ;; Additional parsers for the generic framework
-(defun bfepm-config--parse-json-file (_file)
-  "Parse JSON configuration FILE (placeholder)."
-  (error "JSON configuration format not yet implemented"))
+(defun bfepm-config--parse-json-file (file)
+  "Parse JSON configuration FILE."
+  (if (fboundp 'json-parse-string)
+      (with-temp-buffer
+        (insert-file-contents file)
+        (let* ((json-data (json-parse-string (buffer-string) :object-type 'alist))
+               (packages (bfepm-config--parse-json-packages (alist-get 'packages json-data)))
+               (sources (bfepm-config--parse-json-sources (alist-get 'sources json-data)))
+               (profiles (alist-get 'profiles json-data)))
+          (make-bfepm-config
+           :packages packages
+           :sources (or sources bfepm-config--default-sources)
+           :profiles profiles)))
+    (error "JSON parsing not available - json-parse-string function not found")))
+
+(defun bfepm-config--parse-json-packages (packages-data)
+  "Parse packages section from JSON data."
+  (when packages-data
+    (mapcar (lambda (entry)
+              (let ((name (symbol-name (car entry)))
+                    (spec (cdr entry)))
+                (bfepm-config--parse-package-spec name spec)))
+            packages-data)))
+
+(defun bfepm-config--parse-json-sources (sources-data)
+  "Parse sources section from JSON data."
+  (when sources-data
+    (mapcar (lambda (entry)
+              (let ((name (symbol-name (car entry)))
+                    (spec (cdr entry)))
+                (cons name (bfepm-config--parse-source-spec spec))))
+            sources-data)))
 
 (defun bfepm-config--fallback-loader (file)
   "Fallback configuration loader when preferred format fails."

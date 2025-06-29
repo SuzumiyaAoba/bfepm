@@ -71,16 +71,45 @@
                     :priority 5
                     :cache-key-fn (lambda (query) (format "gnu:%s" query)))))
 
-(defun bfepm-package--rank-search-results (results _query)
-  "Rank search RESULTS for relevance."
-  ;; Simple ranking by popularity and recency
+(defun bfepm-package--rank-search-results (results query)
+  "Rank search RESULTS for relevance based on QUERY."
+  ;; Enhanced ranking considering query relevance, popularity, and recency
   (sort results
         (lambda (a b)
-          (let ((score-a (+ (or (plist-get a :downloads) 0)
-                           (if (plist-get a :recent) 100 0)))
-                (score-b (+ (or (plist-get b :downloads) 0)
-                           (if (plist-get b :recent) 100 0))))
+          (let ((score-a (bfepm-package--calculate-search-score a query))
+                (score-b (bfepm-package--calculate-search-score b query)))
             (> score-a score-b)))))
+
+(defun bfepm-package--calculate-search-score (result query)
+  "Calculate search score for RESULT based on QUERY."
+  (let ((name (plist-get result :name))
+        (description (plist-get result :description))
+        (downloads (or (plist-get result :downloads) 0))
+        (recent (plist-get result :recent))
+        (score 0))
+    
+    ;; Query relevance scoring
+    (when (and name query)
+      ;; Exact name match gets highest score
+      (if (string= (downcase name) (downcase query))
+          (setq score (+ score 1000))
+        ;; Partial name match
+        (when (string-match-p (regexp-quote (downcase query)) (downcase name))
+          (setq score (+ score 500))))
+      
+      ;; Description relevance
+      (when (and description 
+                 (string-match-p (regexp-quote (downcase query)) (downcase description)))
+        (setq score (+ score 200))))
+    
+    ;; Popularity scoring (logarithmic to prevent domination)
+    (setq score (+ score (floor (log (max 1 downloads) 10))))
+    
+    ;; Recency bonus
+    (when recent
+      (setq score (+ score 100)))
+    
+    score))
 
 ;; Try to load bfepm-config, fall back to minimal if not available
 (condition-case nil
@@ -112,23 +141,43 @@
 ;; Search implementation functions
 (defun bfepm-package--search-melpa (query)
   "Search MELPA packages for QUERY."
-  ;; This would integrate with actual MELPA search API
-  ;; For now, return placeholder results
-  (list (list :name (format "example-%s" query)
-              :description (format "Example package matching %s" query)
-              :version "1.0.0"
-              :source "melpa"
-              :downloads 1000)))
+  ;; TODO: Integrate with actual MELPA search API
+  ;; This is a placeholder implementation that should be replaced
+  ;; with actual MELPA API calls when available
+  (bfepm-package--search-archive-contents query "melpa"))
 
 (defun bfepm-package--search-gnu-elpa (query)
   "Search GNU ELPA packages for QUERY."
-  ;; This would integrate with actual GNU ELPA search
-  ;; For now, return placeholder results
-  (list (list :name (format "gnu-%s" query)
-              :description (format "GNU package matching %s" query)
-              :version "2.0.0"
-              :source "gnu"
-              :downloads 500)))
+  ;; TODO: Integrate with actual GNU ELPA search API  
+  ;; This is a placeholder implementation that should be replaced
+  ;; with actual GNU ELPA API calls when available
+  (bfepm-package--search-archive-contents query "gnu"))
+
+(defun bfepm-package--search-archive-contents (query source)
+  "Search package archive contents for QUERY from SOURCE.
+This is a basic implementation that searches locally cached archive contents."
+  ;; For demonstration purposes, return structured placeholder data
+  ;; In real implementation, this would search actual archive contents
+  (let ((results '()))
+    (when (and query (> (length query) 0))
+      ;; Simulate different types of matches
+      (push (list :name (format "%s-mode" query)
+                  :description (format "Major mode for %s files" query)
+                  :version "1.2.3"
+                  :source source
+                  :downloads (+ 500 (random 1500))
+                  :recent (< (random 10) 3))  ; 30% chance of being recent
+            results)
+      
+      (when (> (length query) 2)
+        (push (list :name (format "%s-utils" query)
+                    :description (format "Utilities for %s development" query)
+                    :version "0.9.1"
+                    :source source
+                    :downloads (+ 100 (random 800))
+                    :recent (< (random 10) 2))  ; 20% chance of being recent
+              results)))
+    results))
 
 (defun bfepm-package--get-default-sources ()
   "Get default package sources when config is not available."
