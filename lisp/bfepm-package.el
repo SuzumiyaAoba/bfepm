@@ -141,15 +141,11 @@
 ;; Search implementation functions
 (defun bfepm-package--search-melpa (query)
   "Search MELPA packages for QUERY."
-  ;; Enhanced search simulation with realistic package variants
-  ;; In production, this would integrate with actual MELPA search API
-  (bfepm-package--search-archive-contents query "melpa"))
+  (bfepm-package--search-elpa-source "https://melpa.org/packages/archive-contents" query))
 
 (defun bfepm-package--search-gnu-elpa (query)
   "Search GNU ELPA packages for QUERY."
-  ;; Enhanced search simulation with realistic package variants
-  ;; In production, this would integrate with actual GNU ELPA search API
-  (bfepm-package--search-archive-contents query "gnu"))
+  (bfepm-package--search-elpa-source "https://elpa.gnu.org/packages/archive-contents" query))
 
 (defun bfepm-package--search-archive-contents (query source)
   "Search package archive contents for QUERY from SOURCE.
@@ -186,6 +182,60 @@ For production use, would fetch and search actual archive contents."
                       (> (bfepm-package--calculate-search-score a query)
                          (bfepm-package--calculate-search-score b query))))
               8)))
+
+;; Real ELPA search implementation functions
+(defun bfepm-package--search-elpa-source (archive-url query)
+  "Search ELPA source at ARCHIVE-URL for QUERY."
+  (condition-case err
+      (let* ((response (url-retrieve-synchronously archive-url))
+             (results '()))
+        (when response
+          (with-current-buffer response
+            (goto-char (point-min))
+            ;; Skip HTTP headers
+            (when (re-search-forward "^\\r?$" nil t)
+              (let ((archive-contents (condition-case nil
+                                          (read (current-buffer))
+                                        (error nil))))
+                (when archive-contents
+                  (dolist (package-entry (cdr archive-contents))  ; Skip version number
+                    (when (listp package-entry)
+                      (let* ((package-name (symbol-name (car package-entry)))
+                             (package-info (cadr package-entry))
+                             (version (when (vectorp package-info) (aref package-info 0)))
+                             (description (when (vectorp package-info) (aref package-info 2))))
+                        (when (bfepm-package--package-matches-query-p package-name description query)
+                          (push (bfepm-package--create-search-result package-name version description archive-url)
+                                results))))))))
+            (kill-buffer response)))
+        ;; Sort by relevance score and limit results
+        (seq-take (sort results
+                        (lambda (a b)
+                          (> (bfepm-package--calculate-search-score a query)
+                             (bfepm-package--calculate-search-score b query))))
+                  10))
+    (error
+     (message "Warning: Failed to search %s: %s" archive-url (error-message-string err))
+     nil)))
+
+(defun bfepm-package--package-matches-query-p (package-name description query)
+  "Check if PACKAGE-NAME and DESCRIPTION match search QUERY."
+  (let ((escaped-query (regexp-quote (downcase query))))
+    (or (string-match-p escaped-query (downcase package-name))
+        (and description (string-match-p escaped-query (downcase description))))))
+
+(defun bfepm-package--create-search-result (package-name version description archive-url)
+  "Create search result from PACKAGE-NAME, VERSION, DESCRIPTION and ARCHIVE-URL."
+  (list :name package-name
+        :description (or description "No description available")
+        :version (if (vectorp version) 
+                     (mapconcat #'number-to-string version ".")
+                   (format "%s" version))
+        :source (cond ((string-match-p "melpa" archive-url) "melpa")
+                      ((string-match-p "elpa\\.gnu" archive-url) "gnu")
+                      (t "unknown"))
+        :downloads (+ 100 (random 1000))  ; Simulate download count for now
+        :recent (< (random 10) 3)))       ; 30% marked as recent
 
 (defun bfepm-package--get-default-sources ()
   "Get default package sources when config is not available."
