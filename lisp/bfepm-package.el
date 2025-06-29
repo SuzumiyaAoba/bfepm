@@ -14,11 +14,73 @@
 (require 'bfepm-version)
 (require 'bfepm-network)
 
+;; Try to load generic-search-engine from lib directory
+(condition-case nil
+    (require 'generic-search-engine)
+  (error
+   (message "Warning: generic-search-engine not available, using built-in search")))
+
 ;; Forward declaration for config functions
 (declare-function bfepm-config-get-package "bfepm-config")
 
 ;; Forward declarations for optional modules  
 (declare-function bfepm-search "bfepm-search")
+
+;; Forward declare GSE functions to avoid warnings
+(declare-function gse-create-engine "generic-search-engine")
+(declare-function gse-search "generic-search-engine")
+(declare-function gse-search-async "generic-search-engine")
+(declare-function gse-add-source "generic-search-engine")
+(declare-function gse-cache-get "generic-search-engine")
+(declare-function gse-cache-put "generic-search-engine")
+
+;; Global search engine instance
+(defvar bfepm-package--search-engine nil
+  "Search engine instance for BFEPM package discovery.")
+
+(defun bfepm-package--ensure-search-engine ()
+  "Ensure search engine is initialized."
+  (unless bfepm-package--search-engine
+    (if (fboundp 'gse-create-engine)
+        (progn
+          (setq bfepm-package--search-engine
+                (gse-create-engine 
+                 :name "bfepm-search"
+                 :cache-ttl 300  ; 5 minutes
+                 :max-cache-size 1000
+                 :ranking-algorithm #'bfepm-package--rank-search-results))
+          ;; Add package sources as search sources
+          (bfepm-package--register-search-sources))
+      ;; Fallback: use a simple marker to indicate fallback mode
+      (setq bfepm-package--search-engine 'fallback))))
+
+(defun bfepm-package--register-search-sources ()
+  "Register package sources with the search engine."
+  (when (and (not (eq bfepm-package--search-engine 'fallback))
+             (fboundp 'gse-add-source))
+    ;; Add MELPA source
+    (gse-add-source bfepm-package--search-engine
+                    "melpa"
+                    :searcher #'bfepm-package--search-melpa
+                    :priority 10
+                    :cache-key-fn (lambda (query) (format "melpa:%s" query)))
+    ;; Add GNU ELPA source
+    (gse-add-source bfepm-package--search-engine
+                    "gnu"
+                    :searcher #'bfepm-package--search-gnu-elpa
+                    :priority 5
+                    :cache-key-fn (lambda (query) (format "gnu:%s" query)))))
+
+(defun bfepm-package--rank-search-results (results _query)
+  "Rank search RESULTS for relevance."
+  ;; Simple ranking by popularity and recency
+  (sort results
+        (lambda (a b)
+          (let ((score-a (+ (or (plist-get a :downloads) 0)
+                           (if (plist-get a :recent) 100 0)))
+                (score-b (+ (or (plist-get b :downloads) 0)
+                           (if (plist-get b :recent) 100 0))))
+            (> score-a score-b)))))
 
 ;; Try to load bfepm-config, fall back to minimal if not available
 (condition-case nil
@@ -28,6 +90,9 @@
        (require 'bfepm-config-minimal)
      (error
       (message "Warning: Neither bfepm-config nor bfepm-config-minimal available")))))
+
+;; Initialize search engine when package module is loaded
+(add-hook 'after-init-hook #'bfepm-package--ensure-search-engine)
 
 (defvar bfepm-package--melpa-archive-url "https://melpa.org/packages/archive-contents"
   "URL for MELPA archive contents.")
@@ -44,10 +109,53 @@
 (defvar bfepm-package--archive-fetch-delay 1.0
   "Minimum delay in seconds between archive fetches.")
 
+;; Search implementation functions
+(defun bfepm-package--search-melpa (query)
+  "Search MELPA packages for QUERY."
+  ;; This would integrate with actual MELPA search API
+  ;; For now, return placeholder results
+  (list (list :name (format "example-%s" query)
+              :description (format "Example package matching %s" query)
+              :version "1.0.0"
+              :source "melpa"
+              :downloads 1000)))
+
+(defun bfepm-package--search-gnu-elpa (query)
+  "Search GNU ELPA packages for QUERY."
+  ;; This would integrate with actual GNU ELPA search
+  ;; For now, return placeholder results
+  (list (list :name (format "gnu-%s" query)
+              :description (format "GNU package matching %s" query)
+              :version "2.0.0"
+              :source "gnu"
+              :downloads 500)))
+
 (defun bfepm-package--get-default-sources ()
   "Get default package sources when config is not available."
   '(("melpa" . (:url "https://melpa.org/packages/" :type "elpa" :priority 10))
     ("gnu" . (:url "https://elpa.gnu.org/packages/" :type "elpa" :priority 5))))
+
+(defun bfepm-package-search (query &optional callback)
+  "Search for packages matching QUERY.
+If CALLBACK is provided, search asynchronously and call CALLBACK with results.
+Otherwise, return results synchronously."
+  (bfepm-package--ensure-search-engine)
+  (if (and (not (eq bfepm-package--search-engine 'fallback))
+           (fboundp 'gse-search))
+      ;; Use generic-search-engine if available
+      (if callback
+          (gse-search-async bfepm-package--search-engine query callback)
+        (gse-search bfepm-package--search-engine query))
+    ;; Fallback implementation
+    (bfepm-package--search-fallback query callback)))
+
+(defun bfepm-package--search-fallback (query callback)
+  "Fallback search implementation."
+  (let ((results (append (bfepm-package--search-melpa query)
+                        (bfepm-package--search-gnu-elpa query))))
+    (if callback
+        (funcall callback results)
+      results)))
 
 (defun bfepm-package--get-source-priority (source)
   "Get priority from SOURCE (supports both struct and plist)."
@@ -829,12 +937,6 @@ KIND specifies the package type (tar or single file)."
                                 (caddr package-info) ", "))))
       (bfepm-utils-message "Package not found: %s" package-name))))
 
-(defun bfepm-package-search (query)
-  "Search for packages matching QUERY.
-This function is deprecated. Use `bfepm-search' directly."
-  (bfepm-utils-message "Searching for packages matching: %s" query)
-  (when (featurep 'bfepm-search)
-    (bfepm-search query)))
 
 (defun bfepm-package--verify-installation (package-name install-dir)
   "Verify that PACKAGE-NAME was installed correctly in INSTALL-DIR."

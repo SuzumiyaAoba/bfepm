@@ -10,6 +10,12 @@
 (require 'bfepm-core)
 (require 'bfepm-utils)
 
+;; Try to load generic-config-framework from lib directory
+(condition-case nil
+    (require 'generic-config-framework)
+  (error
+   (message "Warning: generic-config-framework not available, using built-in config handling")))
+
 ;; TOML support is optional
 (defvar bfepm-config--toml-available nil
   "Whether TOML parsing is available.")
@@ -22,8 +28,39 @@
    (message "Warning: TOML parser not available - TOML config files will not be supported")
    (setq bfepm-config--toml-available nil)))
 
+;; Global config framework instance
+(defvar bfepm-config--framework nil
+  "Configuration framework instance for BFEPM.")
+
+;; Forward declare GCF functions to avoid warnings
+(declare-function gcf-create-framework "generic-config-framework")
+(declare-function gcf-load-config "generic-config-framework")
+(declare-function gcf-save-config "generic-config-framework")
+(declare-function gcf-validate-config "generic-config-framework")
+(declare-function gcf-add-validator "generic-config-framework")
+(declare-function gcf-set-default-factory "generic-config-framework")
+
 ;; Declare external functions to avoid compilation warnings
 (declare-function toml:read-from-file "toml")
+
+(defun bfepm-config--ensure-framework ()
+  "Ensure configuration framework is initialized."
+  (unless bfepm-config--framework
+    (if (fboundp 'gcf-create-framework)
+        (progn
+          (setq bfepm-config--framework
+                (gcf-create-framework 
+                 :name "bfepm-config"
+                 :supported-formats '(("toml" . bfepm-config--parse-toml-file)
+                                     ("json" . bfepm-config--parse-json-file))
+                 :fallback-loader #'bfepm-config--fallback-loader))
+          ;; Add BFEPM-specific validators
+          (gcf-add-validator bfepm-config--framework #'bfepm-config--validate-sources)
+          (gcf-add-validator bfepm-config--framework #'bfepm-config--validate-packages)
+          ;; Set default config factory
+          (gcf-set-default-factory bfepm-config--framework #'bfepm-config-create-default))
+      ;; Fallback: use a simple marker to indicate fallback mode
+      (setq bfepm-config--framework 'fallback))))
 
 (defvar bfepm-config--default-sources
   `(("melpa" . ,(make-bfepm-source
@@ -45,11 +82,20 @@
 
 (defun bfepm-config-load (file)
   "Load BFEPM configuration from TOML FILE."
+  (bfepm-config--ensure-framework)
   (if (file-exists-p file)
-      (condition-case err
-          (bfepm-config--parse-toml-file file)
-        (error
-         (bfepm-utils-error "Failed to load config file %s: %s" file err)))
+      (if (and (not (eq bfepm-config--framework 'fallback))
+               (fboundp 'gcf-load-config))
+          ;; Use generic-config-framework if available
+          (condition-case err
+              (gcf-load-config bfepm-config--framework file)
+            (error
+             (bfepm-utils-error "Failed to load config file %s: %s" file err)))
+        ;; Fallback implementation
+        (condition-case err
+            (bfepm-config--parse-toml-file file)
+          (error
+           (bfepm-utils-error "Failed to load config file %s: %s" file err))))
     (bfepm-utils-error "Config file not found: %s" file)))
 
 (defun bfepm-config--parse-toml-file (file)
@@ -166,10 +212,16 @@ PROFILES-DATA is the raw profile data from TOML parsing."
 
 (defun bfepm-config-save (config file)
   "Save BFEPM CONFIG to TOML FILE."
-  (let ((toml-data (bfepm-config--to-toml config)))
-    (with-temp-buffer
-      (insert (bfepm-config--toml-encode toml-data))
-      (write-file file))))
+  (bfepm-config--ensure-framework)
+  (if (and (not (eq bfepm-config--framework 'fallback))
+           (fboundp 'gcf-save-config))
+      ;; Use generic-config-framework if available
+      (gcf-save-config bfepm-config--framework config file)
+    ;; Fallback implementation
+    (let ((toml-data (bfepm-config--to-toml config)))
+      (with-temp-buffer
+        (insert (bfepm-config--toml-encode toml-data))
+        (write-file file)))))
 
 (defun bfepm-config--to-toml (config)
   "Convert bfepm-config structure to TOML-compatible alist.
@@ -245,6 +297,16 @@ CONFIG is the bfepm-config structure to convert."
 (defun bfepm-config-validate (config)
   "Validate BFEPM configuration structure.
 CONFIG is the configuration structure to validate."
+  (bfepm-config--ensure-framework)
+  (if (and (not (eq bfepm-config--framework 'fallback))
+           (fboundp 'gcf-validate-config))
+      ;; Use generic-config-framework if available
+      (gcf-validate-config bfepm-config--framework config)
+    ;; Fallback implementation
+    (bfepm-config--validate-fallback config)))
+
+(defun bfepm-config--validate-fallback (config)
+  "Fallback configuration validation."
   (unless (bfepm-config-p config)
     (bfepm-utils-error "Invalid configuration structure"))
   
@@ -260,6 +322,32 @@ CONFIG is the configuration structure to validate."
       (bfepm-utils-error "Package %s missing version" (bfepm-package-name package))))
   
   t)
+
+;; Validator functions for the generic framework
+(defun bfepm-config--validate-sources (config)
+  "Validate package sources in CONFIG."
+  (unless (bfepm-config-sources config)
+    (error "No package sources defined"))
+  t)
+
+(defun bfepm-config--validate-packages (config)
+  "Validate package specifications in CONFIG."
+  (dolist (package (bfepm-config-packages config))
+    (unless (bfepm-package-name package)
+      (error "Package missing name"))
+    (unless (bfepm-package-version package)
+      (error "Package %s missing version" (bfepm-package-name package))))
+  t)
+
+;; Additional parsers for the generic framework
+(defun bfepm-config--parse-json-file (_file)
+  "Parse JSON configuration FILE (placeholder)."
+  (error "JSON configuration format not yet implemented"))
+
+(defun bfepm-config--fallback-loader (file)
+  "Fallback configuration loader when preferred format fails."
+  (message "Using fallback loader for config file: %s" file)
+  (bfepm-config-create-default))
 
 (defun bfepm-config-get-package (config package-name)
   "Get package specification for PACKAGE-NAME from CONFIG."
