@@ -91,7 +91,8 @@ This is a synchronous operation that blocks until completion."
 MAX-RETRIES defaults to 3. This is a synchronous operation."
   (bfepm-network--ensure-client)
   (bfepm-network--ensure-directory (file-name-directory local-file))
-  (if (and (not (eq bfepm-network--http-client 'fallback))
+  (if (and (not max-retries) ; Fallback if max-retries is specified, as ghc-client uses its own config
+           (not (eq bfepm-network--http-client 'fallback))
            (fboundp 'ghc-download-file))
       ;; Use generic-http-client if available
       (let ((response (ghc-download-file bfepm-network--http-client url local-file)))
@@ -111,7 +112,8 @@ CALLBACK is called with (success error-message) when complete.
 MAX-RETRIES defaults to 3."
   (bfepm-network--ensure-client)
   (bfepm-network--ensure-directory (file-name-directory local-file))
-  (if (and (not (eq bfepm-network--http-client 'fallback))
+  (if (and (not max-retries) ; Fallback if max-retries is specified, as ghc-client uses its own config
+           (not (eq bfepm-network--http-client 'fallback))
            (fboundp 'ghc-download-file-async))
       ;; Use generic-http-client if available
       (ghc-download-file-async bfepm-network--http-client url local-file

@@ -245,12 +245,19 @@ CONSTRAINTS is a list of constraint strings.
 Returns the highest version that satisfies all constraints, or nil if none."
   (bfepm-version--ensure-engine)
   (if (and (not (eq bfepm-version--engine 'fallback))
-           (fboundp 'vce-find-best-match))
-      ;; Use version-constraint-engine if available - try with first constraint
-      (if (= (length constraints) 1)
-          (vce-find-best-match bfepm-version--engine available-versions (car constraints))
-        ;; For multiple constraints, fall back to original logic
-        (bfepm-version--find-best-match-fallback available-versions constraints))
+           (fboundp 'vce-satisfies-p)
+           (fboundp 'vce-sort-versions))
+      ;; Use version-constraint-engine for all cases
+      (let ((matching-versions
+             (cl-remove-if-not
+              (lambda (version)
+                (cl-every (lambda (constraint)
+                            (vce-satisfies-p bfepm-version--engine version constraint))
+                          constraints))
+              available-versions)))
+        (when matching-versions
+          ;; Sort descending to get the highest version first
+          (car (vce-sort-versions bfepm-version--engine matching-versions t))))
     ;; Fallback implementation
     (bfepm-version--find-best-match-fallback available-versions constraints)))
 

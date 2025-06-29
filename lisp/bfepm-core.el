@@ -11,7 +11,8 @@
 ;; Add lib directory to load path for framework libraries
 (let ((lib-dir (expand-file-name "lib" (file-name-directory
                                        (or load-file-name buffer-file-name)))))
-  (when (file-directory-p lib-dir)
+  (when (and (file-directory-p lib-dir)
+             (not (member lib-dir load-path)))
     (add-to-list 'load-path lib-dir)))
 
 ;; Declare external functions to avoid compilation warnings
