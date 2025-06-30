@@ -223,12 +223,18 @@ PROFILES-DATA is the raw profile data from TOML parsing."
   (if (and (not (eq bfepm-config--framework 'fallback))
            (fboundp 'gcf-save-config))
       ;; Use generic-config-framework if available
-      (gcf-save-config bfepm-config--framework config file)
+      (condition-case err
+          (gcf-save-config bfepm-config--framework config file)
+        (error
+         (bfepm-utils-error "Failed to save config file %s: %s" file (error-message-string err))))
     ;; Fallback implementation
-    (let ((toml-data (bfepm-config--to-toml config)))
-      (with-temp-buffer
-        (insert (bfepm-config--toml-encode toml-data))
-        (write-file file)))))
+    (condition-case err
+        (let ((toml-data (bfepm-config--to-toml config)))
+          (with-temp-buffer
+            (insert (bfepm-config--toml-encode toml-data))
+            (write-file file)))
+      (error
+       (bfepm-utils-error "Failed to save config file %s: %s" file (error-message-string err))))))
 
 (defun bfepm-config--to-toml (config)
   "Convert bfepm-config structure to TOML-compatible alist.
@@ -308,9 +314,13 @@ CONFIG is the configuration structure to validate."
   (if (and (not (eq bfepm-config--framework 'fallback))
            (fboundp 'gcf-validate-config))
       ;; Use generic-config-framework if available
-      (gcf-validate-config bfepm-config--framework config)
+      (condition-case err
+          (gcf-validate-config bfepm-config--framework config)
+        (error (bfepm-utils-error "Configuration validation failed: %s" (error-message-string err))))
     ;; Fallback implementation
-    (bfepm-config--validate-fallback config)))
+    (condition-case err
+        (bfepm-config--validate-fallback config)
+      (error (bfepm-utils-error "Configuration validation failed: %s" (error-message-string err))))))
 
 (defun bfepm-config--validate-fallback (config)
   "Fallback configuration validation."

@@ -139,75 +139,109 @@
   "Minimum delay in seconds between archive fetches.")
 
 ;; Search implementation functions
-(defun bfepm-package--search-melpa (query)
-  "Search MELPA packages for QUERY."
-  (bfepm-package--search-elpa-source "https://melpa.org/packages/archive-contents" query))
+(defun bfepm-package--search-melpa (query &optional callback)
+  "Search MELPA packages for QUERY.
+If CALLBACK is provided, search asynchronously."
+  (bfepm-package--search-elpa-source "https://melpa.org/packages/archive-contents" query callback))
 
-(defun bfepm-package--search-gnu-elpa (query)
-  "Search GNU ELPA packages for QUERY."
-  (bfepm-package--search-elpa-source "https://elpa.gnu.org/packages/archive-contents" query))
+(defun bfepm-package--search-gnu-elpa (query &optional callback)
+  "Search GNU ELPA packages for QUERY.
+If CALLBACK is provided, search asynchronously."
+  (bfepm-package--search-elpa-source "https://elpa.gnu.org/packages/archive-contents" query callback))
 
-(defun bfepm-package--search-archive-contents (query source)
-  "Search package archive contents for QUERY from SOURCE.
-Provides realistic search simulation with relevance-based ranking.
-For production use, would fetch and search actual archive contents."
-  (let ((results '()))
-    (when (and query (> (length query) 0))
-      ;; Generate realistic package variants with improved relevance
-      (let ((base-downloads (cond ((string= source "melpa") 1000)
-                                  ((string= source "gnu") 500)
-                                  (t 100))))
-        ;; Exact match (highest relevance)
-        (push (list :name query
-                    :description (format "Main %s package" query)
-                    :version "2.1.0"
-                    :source source
-                    :downloads (+ base-downloads (random 2000))
-                    :recent (< (random 10) 4))  ; 40% recent for exact matches
-              results)
-        
-        ;; Common variants
-        (dolist (suffix '("mode" "utils" "extra" "tools"))
-          (when (< (random 10) 6)  ; 60% chance for each suffix
-            (push (list :name (format "%s-%s" query suffix)
-                        :description (format "%s support for %s" (capitalize suffix) query)
-                        :version (format "%d.%d.%d" (1+ (random 3)) (random 10) (random 10))
-                        :source source
-                        :downloads (+ (/ base-downloads 2) (random base-downloads))
-                        :recent (< (random 10) 2))  ; 20% recent for variants
-                  results)))))
-    ;; Sort by relevance score and limit results  
-    (seq-take (sort results
-                    (lambda (a b)
-                      (> (bfepm-package--calculate-search-score a query)
-                         (bfepm-package--calculate-search-score b query))))
-              8)))
 
 ;; Real ELPA search implementation functions
-(defun bfepm-package--search-elpa-source (archive-url query)
-  "Search ELPA source at ARCHIVE-URL for QUERY."
+(defun bfepm-package--search-elpa-source (archive-url query &optional callback)
+  "Search ELPA source at ARCHIVE-URL for QUERY.
+If CALLBACK is provided, search asynchronously and call CALLBACK with results.
+Otherwise, search synchronously (not recommended for interactive use)."
+  (if callback
+      ;; Async search - non-blocking
+      (bfepm-package--search-elpa-source-async archive-url query callback)
+    ;; Sync search - for compatibility only, not recommended
+    (bfepm-package--search-elpa-source-sync archive-url query)))
+
+(defun bfepm-package--search-elpa-source-async (archive-url query callback)
+  "Search ELPA source asynchronously at ARCHIVE-URL for QUERY.
+Calls CALLBACK with (success results error-message) when complete."
+  (condition-case err
+      (url-retrieve archive-url
+                    (lambda (status)
+                      (let ((results '())
+                            (error-msg nil))
+                        (unwind-protect
+                            (progn
+                              ;; Check for URL retrieval errors
+                              (when (plist-get status :error)
+                                (setq error-msg (format "URL retrieval failed: %s" 
+                                                       (plist-get status :error))))
+                              
+                              (unless error-msg
+                                (goto-char (point-min))
+                                ;; Skip HTTP headers
+                                (if (re-search-forward "^\\r?$" nil t)
+                                    (condition-case parse-err
+                                        (let ((archive-contents (read (current-buffer))))
+                                          (when archive-contents
+                                            (dolist (package-entry (cdr archive-contents))
+                                              (when (listp package-entry)
+                                                (let* ((package-name (symbol-name (car package-entry)))
+                                                       (package-info (cadr package-entry))
+                                                       (version (when (vectorp package-info) (aref package-info 0)))
+                                                       (description (when (vectorp package-info) (aref package-info 2))))
+                                                  (when (bfepm-package--package-matches-query-p package-name description query)
+                                                    (push (bfepm-package--create-search-result package-name version description archive-url)
+                                                          results)))))))
+                                      (error
+                                       (setq error-msg (format "Failed to parse archive contents: %s" 
+                                                              (error-message-string parse-err)))))
+                                  (setq error-msg "Invalid HTTP response format"))))
+                          
+                          ;; Always clean up buffer
+                          (when (current-buffer)
+                            (kill-buffer (current-buffer))))
+                        
+                        ;; Call callback with results
+                        (if error-msg
+                            (funcall callback nil nil error-msg)
+                          (let ((sorted-results (seq-take 
+                                               (sort results
+                                                     (lambda (a b)
+                                                       (> (bfepm-package--calculate-search-score a query)
+                                                          (bfepm-package--calculate-search-score b query))))
+                                               10)))
+                            (funcall callback t sorted-results nil))))))
+    (error
+     (funcall callback nil nil (format "Search failed: %s" (error-message-string err))))))
+
+(defun bfepm-package--search-elpa-source-sync (archive-url query)
+  "Search ELPA source synchronously at ARCHIVE-URL for QUERY.
+WARNING: This blocks Emacs and should only be used for testing/compatibility."
   (condition-case err
       (let* ((response (url-retrieve-synchronously archive-url))
              (results '()))
         (when response
-          (with-current-buffer response
-            (goto-char (point-min))
-            ;; Skip HTTP headers
-            (when (re-search-forward "^\\r?$" nil t)
-              (let ((archive-contents (condition-case nil
-                                          (read (current-buffer))
-                                        (error nil))))
-                (when archive-contents
-                  (dolist (package-entry (cdr archive-contents))  ; Skip version number
-                    (when (listp package-entry)
-                      (let* ((package-name (symbol-name (car package-entry)))
-                             (package-info (cadr package-entry))
-                             (version (when (vectorp package-info) (aref package-info 0)))
-                             (description (when (vectorp package-info) (aref package-info 2))))
-                        (when (bfepm-package--package-matches-query-p package-name description query)
-                          (push (bfepm-package--create-search-result package-name version description archive-url)
-                                results))))))))
-            (kill-buffer response)))
+          (unwind-protect
+              (with-current-buffer response
+                (goto-char (point-min))
+                ;; Skip HTTP headers
+                (when (re-search-forward "^\\r?$" nil t)
+                  (let ((archive-contents (condition-case nil
+                                              (read (current-buffer))
+                                            (error nil))))
+                    (when archive-contents
+                      (dolist (package-entry (cdr archive-contents))
+                        (when (listp package-entry)
+                          (let* ((package-name (symbol-name (car package-entry)))
+                                 (package-info (cadr package-entry))
+                                 (version (when (vectorp package-info) (aref package-info 0)))
+                                 (description (when (vectorp package-info) (aref package-info 2))))
+                            (when (bfepm-package--package-matches-query-p package-name description query)
+                              (push (bfepm-package--create-search-result package-name version description archive-url)
+                                    results)))))))))
+            ;; Always kill buffer
+            (when (buffer-live-p response)
+              (kill-buffer response))))
         ;; Sort by relevance score and limit results
         (seq-take (sort results
                         (lambda (a b)
