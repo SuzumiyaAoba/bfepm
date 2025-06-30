@@ -89,16 +89,16 @@
 
 (defun bfepm-config-load (file)
   "Load BFEPM configuration from TOML FILE."
-  (bfepm-config--ensure-framework)
   (if (file-exists-p file)
-      (if (and (not (eq bfepm-config--framework 'fallback))
-               (fboundp 'gcf-load-config))
-          ;; Use generic-config-framework if available
-          (condition-case err
-              (gcf-load-config bfepm-config--framework file)
-            (error
-             (bfepm-utils-error "Failed to load config file %s: %s" file err)))
-        ;; Fallback implementation
+      (bfepm-core-with-framework bfepm-config--framework 
+                                 #'bfepm-config--ensure-framework 
+                                 'gcf-load-config
+        ;; Framework implementation
+        (condition-case err
+            (gcf-load-config bfepm-config--framework file)
+          (error
+           (bfepm-utils-error "Failed to load config file %s: %s" file err)))
+        ;; Fallback implementation  
         (condition-case err
             (bfepm-config--parse-toml-file file)
           (error
@@ -219,14 +219,14 @@ PROFILES-DATA is the raw profile data from TOML parsing."
 
 (defun bfepm-config-save (config file)
   "Save BFEPM CONFIG to TOML FILE."
-  (bfepm-config--ensure-framework)
-  (if (and (not (eq bfepm-config--framework 'fallback))
-           (fboundp 'gcf-save-config))
-      ;; Use generic-config-framework if available
-      (condition-case err
-          (gcf-save-config bfepm-config--framework config file)
-        (error
-         (bfepm-utils-error "Failed to save config file %s: %s" file (error-message-string err))))
+  (bfepm-core-with-framework bfepm-config--framework 
+                             #'bfepm-config--ensure-framework 
+                             'gcf-save-config
+    ;; Framework implementation
+    (condition-case err
+        (gcf-save-config bfepm-config--framework config file)
+      (error
+       (bfepm-utils-error "Failed to save config file %s: %s" file (error-message-string err))))
     ;; Fallback implementation
     (condition-case err
         (let ((toml-data (bfepm-config--to-toml config)))
@@ -310,13 +310,13 @@ CONFIG is the bfepm-config structure to convert."
 (defun bfepm-config-validate (config)
   "Validate BFEPM configuration structure.
 CONFIG is the configuration structure to validate."
-  (bfepm-config--ensure-framework)
-  (if (and (not (eq bfepm-config--framework 'fallback))
-           (fboundp 'gcf-validate-config))
-      ;; Use generic-config-framework if available
-      (condition-case err
-          (gcf-validate-config bfepm-config--framework config)
-        (error (bfepm-utils-error "Configuration validation failed: %s" (error-message-string err))))
+  (bfepm-core-with-framework bfepm-config--framework 
+                             #'bfepm-config--ensure-framework 
+                             'gcf-validate-config
+    ;; Framework implementation
+    (condition-case err
+        (gcf-validate-config bfepm-config--framework config)
+      (error (bfepm-utils-error "Configuration validation failed: %s" (error-message-string err))))
     ;; Fallback implementation
     (condition-case err
         (bfepm-config--validate-fallback config)
@@ -344,16 +344,16 @@ CONFIG is the configuration structure to validate."
 (defun bfepm-config--validate-sources (config)
   "Validate package sources in CONFIG."
   (unless (bfepm-config-sources config)
-    (error "No package sources defined"))
+    (bfepm-utils-error "No package sources defined"))
   t)
 
 (defun bfepm-config--validate-packages (config)
   "Validate package specifications in CONFIG."
   (dolist (package (bfepm-config-packages config))
     (unless (bfepm-package-name package)
-      (error "Package missing name"))
+      (bfepm-utils-error "Package missing name"))
     (unless (bfepm-package-version package)
-      (error "Package %s missing version" (bfepm-package-name package))))
+      (bfepm-utils-error "Package %s missing version" (bfepm-package-name package))))
   t)
 
 ;; Additional parsers for the generic framework

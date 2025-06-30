@@ -268,8 +268,8 @@ WARNING: This blocks Emacs and should only be used for testing/compatibility."
         :source (cond ((string-match-p "melpa" archive-url) "melpa")
                       ((string-match-p "elpa\\.gnu" archive-url) "gnu")
                       (t "unknown"))
-        :downloads (+ 100 (random 1000))  ; Simulate download count for now
-        :recent (< (random 10) 3)))       ; 30% marked as recent
+        :downloads 0                      ; Default until real data available
+        :recent nil))                     ; Default until real data available
 
 (defun bfepm-package--get-default-sources ()
   "Get default package sources when config is not available."
