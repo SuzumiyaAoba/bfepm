@@ -63,25 +63,34 @@ keg install
 
 ## Architecture Overview
 
-bfepm is a modern Emacs Lisp package manager with a **domain-driven, modular architecture** consisting of 12 specialized modules:
+bfepm is a modern Emacs Lisp package manager with a **domain-driven, modular architecture** enhanced with **framework abstraction libraries** for advanced functionality:
 
 ### 📦 **Core Modules (4 modules)**
 - **bfepm.el**: Main entry point with interactive commands and public API
-- **bfepm-core.el**: Core functionality, data structures, and system initialization
+- **bfepm-core.el**: Core functionality, data structures, system initialization, and framework integration
 - **bfepm-config.el**: TOML configuration parsing, validation, and management
 - **bfepm-config-minimal.el**: Fallback configuration system without TOML dependencies
 
 ### 🔧 **Domain Services (6 modules)**
 - **bfepm-package.el**: Package installation, removal, dependency resolution, and lifecycle management
-- **bfepm-network.el**: HTTP operations, downloads, retry logic, and rate limiting
+- **bfepm-network.el**: HTTP operations with framework integration (generic-http-client) and url.el fallback
 - **bfepm-git.el**: Git operations, repository management, and version control
-- **bfepm-version.el**: Version comparison, constraint handling, and semantic versioning
+- **bfepm-version.el**: Version comparison with framework integration (version-constraint-engine) and built-in fallback
 - **bfepm-lock.el**: Lock file generation, verification, and reproducible installations
 - **bfepm-search.el**: Package search across MELPA/GNU ELPA with filtering and detailed results
 
 ### 🎮 **User Interface (2 modules)**
 - **bfepm-ui.el**: Interactive tabulated package management interface with advanced features
 - **bfepm-utils.el**: Generic utilities, error handling, and cross-cutting concerns
+
+### 🏛️ **Framework Abstraction Libraries (7 modules)**
+- **generic-http-client.el**: Advanced HTTP operations with retry logic, rate limiting, and caching
+- **version-constraint-engine.el**: Sophisticated version constraint satisfaction for multiple formats
+- **generic-search-engine.el**: Multi-source search aggregation with caching and ranking
+- **generic-config-framework.el**: Multi-format configuration parsing and validation
+- **package-manager-framework.el**: Generic package manager framework abstractions
+- **plugin-system.el**: Extensible plugin system for custom functionality
+- **bfepm-framework-integration.el**: Integration layer between BFEPM and framework libraries
 
 ### 🏗️ **System Architecture**
 ```
@@ -91,18 +100,27 @@ User Interface Layer
 └── Public API              # User-facing functions
 
 Core Business Logic
-├── bfepm-core.el           # Data structures and core functionality  
+├── bfepm-core.el           # Data structures, core functionality, and framework integration
 ├── bfepm-package.el        # Package lifecycle management
 ├── bfepm-config.el         # Configuration system
 ├── bfepm-config-minimal.el # Fallback configuration
 └── bfepm-lock.el           # Reproducible installations
 
-Domain Services  
-├── bfepm-network.el        # Network operations and downloads
+Domain Services (Framework-Enhanced)
+├── bfepm-network.el        # Network operations with generic-http-client integration
 ├── bfepm-git.el           # Git repository management
-├── bfepm-version.el       # Version handling and constraints
+├── bfepm-version.el       # Version handling with version-constraint-engine integration
 ├── bfepm-search.el        # Package search and discovery
 └── bfepm-utils.el         # Generic utilities and error handling
+
+Framework Abstraction Layer (lib/)
+├── generic-http-client.el        # Advanced HTTP operations
+├── version-constraint-engine.el  # Sophisticated version constraint handling
+├── generic-search-engine.el      # Multi-source search aggregation
+├── generic-config-framework.el   # Multi-format configuration support
+├── package-manager-framework.el  # Generic package manager abstractions
+├── plugin-system.el              # Extensible plugin architecture
+└── bfepm-framework-integration.el # Integration layer for BFEPM
 ```
 
 ### 📊 **Data Structures**

@@ -14,11 +14,102 @@
 (require 'bfepm-version)
 (require 'bfepm-network)
 
+;; Try to load generic-search-engine from lib directory
+(condition-case nil
+    (require 'generic-search-engine)
+  (error
+   (message "Warning: generic-search-engine not available, using built-in search")))
+
 ;; Forward declaration for config functions
 (declare-function bfepm-config-get-package "bfepm-config")
 
 ;; Forward declarations for optional modules  
 (declare-function bfepm-search "bfepm-search")
+
+;; Forward declare GSE functions to avoid warnings
+(declare-function gse-create-engine "generic-search-engine")
+(declare-function gse-search "generic-search-engine")
+(declare-function gse-search-async "generic-search-engine")
+(declare-function gse-add-source "generic-search-engine")
+(declare-function gse-cache-get "generic-search-engine")
+(declare-function gse-cache-put "generic-search-engine")
+
+;; Global search engine instance
+(defvar bfepm-package--search-engine nil
+  "Search engine instance for BFEPM package discovery.")
+
+(defun bfepm-package--ensure-search-engine ()
+  "Ensure search engine is initialized."
+  (unless bfepm-package--search-engine
+    (if (fboundp 'gse-create-engine)
+        (progn
+          (setq bfepm-package--search-engine
+                (gse-create-engine 
+                 :name "bfepm-search"
+                 :cache-ttl 300  ; 5 minutes
+                 :max-cache-size 1000
+                 :ranking-algorithm #'bfepm-package--rank-search-results))
+          ;; Add package sources as search sources
+          (bfepm-package--register-search-sources))
+      ;; Fallback: use a simple marker to indicate fallback mode
+      (setq bfepm-package--search-engine 'fallback))))
+
+(defun bfepm-package--register-search-sources ()
+  "Register package sources with the search engine."
+  (when (and (not (eq bfepm-package--search-engine 'fallback))
+             (fboundp 'gse-add-source))
+    ;; Add MELPA source
+    (gse-add-source bfepm-package--search-engine
+                    "melpa"
+                    :searcher #'bfepm-package--search-melpa
+                    :priority 10
+                    :cache-key-fn (lambda (query) (format "melpa:%s" query)))
+    ;; Add GNU ELPA source
+    (gse-add-source bfepm-package--search-engine
+                    "gnu"
+                    :searcher #'bfepm-package--search-gnu-elpa
+                    :priority 5
+                    :cache-key-fn (lambda (query) (format "gnu:%s" query)))))
+
+(defun bfepm-package--rank-search-results (results query)
+  "Rank search RESULTS for relevance based on QUERY."
+  ;; Enhanced ranking considering query relevance, popularity, and recency
+  (sort results
+        (lambda (a b)
+          (let ((score-a (bfepm-package--calculate-search-score a query))
+                (score-b (bfepm-package--calculate-search-score b query)))
+            (> score-a score-b)))))
+
+(defun bfepm-package--calculate-search-score (result query)
+  "Calculate search score for RESULT based on QUERY."
+  (let ((name (plist-get result :name))
+        (description (plist-get result :description))
+        (downloads (or (plist-get result :downloads) 0))
+        (recent (plist-get result :recent))
+        (score 0))
+    
+    ;; Query relevance scoring
+    (when (and name query)
+      ;; Exact name match gets highest score
+      (if (string= (downcase name) (downcase query))
+          (setq score (+ score 1000))
+        ;; Partial name match
+        (when (string-match-p (regexp-quote (downcase query)) (downcase name))
+          (setq score (+ score 500))))
+      
+      ;; Description relevance
+      (when (and description 
+                 (string-match-p (regexp-quote (downcase query)) (downcase description)))
+        (setq score (+ score 200))))
+    
+    ;; Popularity scoring (logarithmic to prevent domination)
+    (setq score (+ score (floor (log (max 1 downloads) 10))))
+    
+    ;; Recency bonus
+    (when recent
+      (setq score (+ score 100)))
+    
+    score))
 
 ;; Try to load bfepm-config, fall back to minimal if not available
 (condition-case nil
@@ -28,6 +119,9 @@
        (require 'bfepm-config-minimal)
      (error
       (message "Warning: Neither bfepm-config nor bfepm-config-minimal available")))))
+
+;; Initialize search engine when package module is loaded
+(add-hook 'after-init-hook #'bfepm-package--ensure-search-engine)
 
 (defvar bfepm-package--melpa-archive-url "https://melpa.org/packages/archive-contents"
   "URL for MELPA archive contents.")
@@ -44,10 +138,165 @@
 (defvar bfepm-package--archive-fetch-delay 1.0
   "Minimum delay in seconds between archive fetches.")
 
+;; Search implementation functions
+(defun bfepm-package--search-melpa (query &optional callback)
+  "Search MELPA packages for QUERY.
+If CALLBACK is provided, search asynchronously."
+  (bfepm-package--search-elpa-source "https://melpa.org/packages/archive-contents" query callback))
+
+(defun bfepm-package--search-gnu-elpa (query &optional callback)
+  "Search GNU ELPA packages for QUERY.
+If CALLBACK is provided, search asynchronously."
+  (bfepm-package--search-elpa-source "https://elpa.gnu.org/packages/archive-contents" query callback))
+
+
+;; Real ELPA search implementation functions
+(defun bfepm-package--search-elpa-source (archive-url query &optional callback)
+  "Search ELPA source at ARCHIVE-URL for QUERY.
+If CALLBACK is provided, search asynchronously and call CALLBACK with results.
+Otherwise, search synchronously (not recommended for interactive use)."
+  (if callback
+      ;; Async search - non-blocking
+      (bfepm-package--search-elpa-source-async archive-url query callback)
+    ;; Sync search - for compatibility only, not recommended
+    (bfepm-package--search-elpa-source-sync archive-url query)))
+
+(defun bfepm-package--search-elpa-source-async (archive-url query callback)
+  "Search ELPA source asynchronously at ARCHIVE-URL for QUERY.
+Calls CALLBACK with (success results error-message) when complete."
+  (condition-case err
+      (url-retrieve archive-url
+                    (lambda (status)
+                      (let ((results '())
+                            (error-msg nil))
+                        (unwind-protect
+                            (progn
+                              ;; Check for URL retrieval errors
+                              (when (plist-get status :error)
+                                (setq error-msg (format "URL retrieval failed: %s" 
+                                                       (plist-get status :error))))
+                              
+                              (unless error-msg
+                                (goto-char (point-min))
+                                ;; Skip HTTP headers
+                                (if (re-search-forward "^\\r?$" nil t)
+                                    (condition-case parse-err
+                                        (let ((archive-contents (read (current-buffer))))
+                                          (when archive-contents
+                                            (dolist (package-entry (cdr archive-contents))
+                                              (when (listp package-entry)
+                                                (let* ((package-name (symbol-name (car package-entry)))
+                                                       (package-info (cadr package-entry))
+                                                       (version (when (vectorp package-info) (aref package-info 0)))
+                                                       (description (when (vectorp package-info) (aref package-info 2))))
+                                                  (when (bfepm-package--package-matches-query-p package-name description query)
+                                                    (push (bfepm-package--create-search-result package-name version description archive-url)
+                                                          results)))))))
+                                      (error
+                                       (setq error-msg (format "Failed to parse archive contents: %s" 
+                                                              (error-message-string parse-err)))))
+                                  (setq error-msg "Invalid HTTP response format"))))
+                          
+                          ;; Always clean up buffer
+                          (when (current-buffer)
+                            (kill-buffer (current-buffer))))
+                        
+                        ;; Call callback with results
+                        (if error-msg
+                            (funcall callback nil nil error-msg)
+                          (let ((sorted-results (seq-take 
+                                               (sort results
+                                                     (lambda (a b)
+                                                       (> (bfepm-package--calculate-search-score a query)
+                                                          (bfepm-package--calculate-search-score b query))))
+                                               10)))
+                            (funcall callback t sorted-results nil))))))
+    (error
+     (funcall callback nil nil (format "Search failed: %s" (error-message-string err))))))
+
+(defun bfepm-package--search-elpa-source-sync (archive-url query)
+  "Search ELPA source synchronously at ARCHIVE-URL for QUERY.
+WARNING: This blocks Emacs and should only be used for testing/compatibility."
+  (condition-case err
+      (let* ((response (url-retrieve-synchronously archive-url))
+             (results '()))
+        (when response
+          (unwind-protect
+              (with-current-buffer response
+                (goto-char (point-min))
+                ;; Skip HTTP headers
+                (when (re-search-forward "^\\r?$" nil t)
+                  (let ((archive-contents (condition-case nil
+                                              (read (current-buffer))
+                                            (error nil))))
+                    (when archive-contents
+                      (dolist (package-entry (cdr archive-contents))
+                        (when (listp package-entry)
+                          (let* ((package-name (symbol-name (car package-entry)))
+                                 (package-info (cadr package-entry))
+                                 (version (when (vectorp package-info) (aref package-info 0)))
+                                 (description (when (vectorp package-info) (aref package-info 2))))
+                            (when (bfepm-package--package-matches-query-p package-name description query)
+                              (push (bfepm-package--create-search-result package-name version description archive-url)
+                                    results)))))))))
+            ;; Always kill buffer
+            (when (buffer-live-p response)
+              (kill-buffer response))))
+        ;; Sort by relevance score and limit results
+        (seq-take (sort results
+                        (lambda (a b)
+                          (> (bfepm-package--calculate-search-score a query)
+                             (bfepm-package--calculate-search-score b query))))
+                  10))
+    (error
+     (message "Warning: Failed to search %s: %s" archive-url (error-message-string err))
+     nil)))
+
+(defun bfepm-package--package-matches-query-p (package-name description query)
+  "Check if PACKAGE-NAME and DESCRIPTION match search QUERY."
+  (let ((escaped-query (regexp-quote (downcase query))))
+    (or (string-match-p escaped-query (downcase package-name))
+        (and description (string-match-p escaped-query (downcase description))))))
+
+(defun bfepm-package--create-search-result (package-name version description archive-url)
+  "Create search result from PACKAGE-NAME, VERSION, DESCRIPTION and ARCHIVE-URL."
+  (list :name package-name
+        :description (or description "No description available")
+        :version (if (vectorp version) 
+                     (mapconcat #'number-to-string version ".")
+                   (format "%s" version))
+        :source (cond ((string-match-p "melpa" archive-url) "melpa")
+                      ((string-match-p "elpa\\.gnu" archive-url) "gnu")
+                      (t "unknown"))
+        :downloads 0                      ; Default until real data available
+        :recent nil))                     ; Default until real data available
+
 (defun bfepm-package--get-default-sources ()
   "Get default package sources when config is not available."
   '(("melpa" . (:url "https://melpa.org/packages/" :type "elpa" :priority 10))
     ("gnu" . (:url "https://elpa.gnu.org/packages/" :type "elpa" :priority 5))))
+
+(defun bfepm-package-search (query &optional callback)
+  "Search for packages matching QUERY.
+If CALLBACK is provided, search asynchronously and call CALLBACK with results.
+Otherwise, return results synchronously."
+  (bfepm-package--ensure-search-engine)
+  (if (and (not (eq bfepm-package--search-engine 'fallback))
+           (fboundp 'gse-search))
+      ;; Use generic-search-engine if available
+      (if callback
+          (gse-search-async bfepm-package--search-engine query callback)
+        (gse-search bfepm-package--search-engine query))
+    ;; Fallback implementation
+    (bfepm-package--search-fallback query callback)))
+
+(defun bfepm-package--search-fallback (query callback)
+  "Fallback search implementation."
+  (let ((results (append (bfepm-package--search-melpa query)
+                        (bfepm-package--search-gnu-elpa query))))
+    (if callback
+        (funcall callback results)
+      results)))
 
 (defun bfepm-package--get-source-priority (source)
   "Get priority from SOURCE (supports both struct and plist)."
@@ -829,12 +1078,6 @@ KIND specifies the package type (tar or single file)."
                                 (caddr package-info) ", "))))
       (bfepm-utils-message "Package not found: %s" package-name))))
 
-(defun bfepm-package-search (query)
-  "Search for packages matching QUERY.
-This function is deprecated. Use `bfepm-search' directly."
-  (bfepm-utils-message "Searching for packages matching: %s" query)
-  (when (featurep 'bfepm-search)
-    (bfepm-search query)))
 
 (defun bfepm-package--verify-installation (package-name install-dir)
   "Verify that PACKAGE-NAME was installed correctly in INSTALL-DIR."
