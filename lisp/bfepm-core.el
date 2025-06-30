@@ -15,6 +15,32 @@
              (not (member lib-dir load-path)))
     (add-to-list 'load-path lib-dir)))
 
+;; Framework integration utilities
+(defun bfepm-core-with-framework-or-fallback (framework-var ensure-fn framework-fn fallback-fn &rest args)
+  "Execute FRAMEWORK-FN if framework is available, otherwise FALLBACK-FN.
+FRAMEWORK-VAR is the variable holding the framework instance.
+ENSURE-FN is called to ensure the framework is initialized.
+ARGS are passed to either function."
+  (funcall ensure-fn)
+  (if (and (not (eq (symbol-value framework-var) 'fallback))
+           framework-fn)
+      (apply framework-fn args)
+    (apply fallback-fn args)))
+
+(defmacro bfepm-core-with-framework (framework-var ensure-fn test-fn framework-form fallback-form)
+  "Macro for framework integration pattern.
+FRAMEWORK-VAR is the framework variable to check.
+ENSURE-FN ensures the framework is initialized.
+TEST-FN is used to test if framework function is available.
+FRAMEWORK-FORM is executed when framework is available.
+FALLBACK-FORM is executed when framework is not available."
+  `(progn
+     (,ensure-fn)
+     (if (and (not (eq ,framework-var 'fallback))
+              (fboundp ,test-fn))
+         ,framework-form
+       ,fallback-form)))
+
 ;; Declare external functions to avoid compilation warnings
 (declare-function bfepm-config-save "bfepm-config")
 (declare-function bfepm-config-load "bfepm-config")
