@@ -91,7 +91,7 @@
   "Load BFEPM configuration from TOML FILE."
   (if (file-exists-p file)
       (bfepm-core-with-framework bfepm-config--framework 
-                                 #'bfepm-config--ensure-framework 
+                                 bfepm-config--ensure-framework 
                                  'gcf-load-config
         ;; Framework implementation
         (condition-case err
@@ -220,7 +220,7 @@ PROFILES-DATA is the raw profile data from TOML parsing."
 (defun bfepm-config-save (config file)
   "Save BFEPM CONFIG to TOML FILE."
   (bfepm-core-with-framework bfepm-config--framework 
-                             #'bfepm-config--ensure-framework 
+                             bfepm-config--ensure-framework 
                              'gcf-save-config
     ;; Framework implementation
     (condition-case err
@@ -311,7 +311,7 @@ CONFIG is the bfepm-config structure to convert."
   "Validate BFEPM configuration structure.
 CONFIG is the configuration structure to validate."
   (bfepm-core-with-framework bfepm-config--framework 
-                             #'bfepm-config--ensure-framework 
+                             bfepm-config--ensure-framework 
                              'gcf-validate-config
     ;; Framework implementation
     (condition-case err
