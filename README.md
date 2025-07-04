@@ -4,12 +4,12 @@ A modern, declarative package manager for Emacs that emphasizes simplicity, spee
 
 ## ⚠️ Development Status
 
-**Current Version**: v0.1.0-beta (Near Production Ready)
+**Current Version**: v0.2.0 (Framework Integration Release)
 
 bfepm is in active development with core functionality implemented, tested, and stable. The package manager is approaching production readiness.
 
 ### 🎯 Current Status
-- ✅ **Solid Core Foundation** with modular architecture (11 modules)
+- ✅ **Solid Core Foundation** with modular architecture (12 modules)
 - ✅ **Configuration System** (TOML + minimal fallback) with validation
 - ✅ **Package Management** with async operations and dependency resolution  
 - ✅ **Interactive UI** with tabulated interface and advanced features
@@ -17,11 +17,12 @@ bfepm is in active development with core functionality implemented, tested, and 
 - ✅ **Lock File System** with S-expression format and metadata tracking
 - ✅ **Git Package Support** with branch/tag/commit handling
 - ✅ **Version Management** with semantic and MELPA date version support
-- ✅ **Comprehensive Testing** (63 tests with high coverage)
+- ✅ **Profile Management** with inheritance and multi-environment support
+- ✅ **Comprehensive Testing** (63+ tests with high coverage)
 - ✅ **CI/CD Pipeline** with multiple Emacs versions and quality checks
 - ✅ **Code Organization** with proper separation of concerns
-- 🚧 **Currently Working On**: Profile management and multi-source support
-- 📋 **Next Priority**: Advanced caching and incremental updates
+- 🚧 **Currently Working On**: Advanced caching and incremental updates
+- 📋 **Next Priority**: Usage analytics and performance optimization
 
 See [Implementation Status](#-implementation-status) for detailed progress.
 
@@ -36,13 +37,14 @@ See [Implementation Status](#-implementation-status) for detailed progress.
 - **📦 Dependency Resolution**: Automatic dependency installation
 - **🔄 Error Recovery**: Robust retry logic and rollback capabilities
 - **🏷️ Version Constraints**: Semantic versioning and flexible constraints
+- **👤 Profile System**: Multiple configurations with inheritance support
 - **🏗️ Framework Architecture**: Modular, reusable framework libraries with graceful degradation
 
 ### 🚀 **Coming Soon**
-- **👤 Profile System**: Different configurations for different use cases
 - **💾 Advanced Caching**: Intelligent metadata and download caching
 - **🔄 Incremental Updates**: Smart package updates and backups
 - **📊 Usage Analytics**: Package usage tracking and recommendations
+- **🎨 Theme System**: UI customization and theming support
 
 ## 🚀 Quick Start
 
