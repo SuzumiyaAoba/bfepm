@@ -49,7 +49,7 @@
     (if (fboundp 'gcf-create-framework)
         (progn
           (setq bfepm-config--framework
-                (gcf-create-framework 
+                (gcf-create-framework
                  :name "bfepm-config"
                  :supported-formats (bfepm-config--get-supported-formats)
                  :fallback-loader #'bfepm-config--fallback-loader))
@@ -90,15 +90,15 @@
 (defun bfepm-config-load (file)
   "Load BFEPM configuration from TOML FILE."
   (if (file-exists-p file)
-      (bfepm-core-with-framework bfepm-config--framework 
-                                 bfepm-config--ensure-framework 
+      (bfepm-core-with-framework bfepm-config--framework
+                                 bfepm-config--ensure-framework
                                  'gcf-load-config
         ;; Framework implementation
         (condition-case err
             (gcf-load-config bfepm-config--framework file)
           (error
            (bfepm-utils-error "Failed to load config file %s: %s" file err)))
-        ;; Fallback implementation  
+        ;; Fallback implementation
         (condition-case err
             (bfepm-config--parse-toml-file file)
           (error
@@ -112,7 +112,7 @@
              (packages (bfepm-config--parse-packages (alist-get 'packages toml-data)))
              (sources (bfepm-config--parse-sources (alist-get 'sources toml-data)))
              (profiles (bfepm-config--parse-profiles (alist-get 'profiles toml-data))))
-        
+
         (make-bfepm-config
          :packages packages
          :sources (or sources bfepm-config--default-sources)
@@ -136,7 +136,7 @@ NAME is the package name and SPEC is the specification data."
    ((stringp spec)
     ;; Simple version specification: "latest" or "1.2.3"
     (make-bfepm-package :name name :version spec))
-   
+
    ((listp spec)
     ;; Check if this is a git package specification
     (let ((git-url (alist-get 'git spec)))
@@ -164,7 +164,7 @@ NAME is the package name and SPEC is the specification data."
            :version version
            :source source
            :status (if optional 'optional 'required))))))
-   
+
    (t (bfepm-utils-error "Invalid package specification for %s: %s" name spec))))
 
 (defun bfepm-config--parse-sources (sources-data)
@@ -219,8 +219,8 @@ PROFILES-DATA is the raw profile data from TOML parsing."
 
 (defun bfepm-config-save (config file)
   "Save BFEPM CONFIG to TOML FILE."
-  (bfepm-core-with-framework bfepm-config--framework 
-                             bfepm-config--ensure-framework 
+  (bfepm-core-with-framework bfepm-config--framework
+                             bfepm-config--ensure-framework
                              'gcf-save-config
     ;; Framework implementation
     (condition-case err
@@ -240,24 +240,24 @@ PROFILES-DATA is the raw profile data from TOML parsing."
   "Convert bfepm-config structure to TOML-compatible alist.
 CONFIG is the bfepm-config structure to convert."
   (let ((result '()))
-    
+
     ;; Add meta section
     (push (cons 'meta
                 `((version . "1.0.0")
                   (created . ,(format-time-string "%Y-%m-%dT%H:%M:%SZ" (current-time)))
                   (updated . ,(format-time-string "%Y-%m-%dT%H:%M:%SZ" (current-time)))))
           result)
-    
+
     ;; Add sources
     (when (bfepm-config-sources config)
       (push (cons 'sources (bfepm-config--sources-to-toml (bfepm-config-sources config)))
             result))
-    
+
     ;; Add packages
     (when (bfepm-config-packages config)
       (push (cons 'packages (bfepm-config--packages-to-toml (bfepm-config-packages config)))
             result))
-    
+
     (nreverse result)))
 
 (defun bfepm-config--sources-to-toml (sources)
@@ -310,8 +310,8 @@ CONFIG is the bfepm-config structure to convert."
 (defun bfepm-config-validate (config)
   "Validate BFEPM configuration structure.
 CONFIG is the configuration structure to validate."
-  (bfepm-core-with-framework bfepm-config--framework 
-                             bfepm-config--ensure-framework 
+  (bfepm-core-with-framework bfepm-config--framework
+                             bfepm-config--ensure-framework
                              'gcf-validate-config
     ;; Framework implementation
     (condition-case err
@@ -326,18 +326,18 @@ CONFIG is the configuration structure to validate."
   "Fallback configuration validation."
   (unless (bfepm-config-p config)
     (bfepm-utils-error "Invalid configuration structure"))
-  
+
   ;; Validate required fields
   (unless (bfepm-config-sources config)
     (bfepm-utils-error "No package sources defined"))
-  
+
   ;; Validate package specifications
   (dolist (package (bfepm-config-packages config))
     (unless (bfepm-package-name package)
       (bfepm-utils-error "Package missing name"))
     (unless (bfepm-package-version package)
       (bfepm-utils-error "Package %s missing version" (bfepm-package-name package))))
-  
+
   t)
 
 ;; Validator functions for the generic framework

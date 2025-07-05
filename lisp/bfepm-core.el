@@ -116,15 +116,15 @@ FALLBACK-FORM is executed when framework is not available."
   (let ((bfepm-dir (expand-file-name bfepm-directory)))
     (unless (file-exists-p bfepm-dir)
       (make-directory bfepm-dir t))
-    
+
     (setq bfepm--packages-directory (expand-file-name "packages" bfepm-dir))
     (unless (file-exists-p bfepm--packages-directory)
       (make-directory bfepm--packages-directory t))
-    
+
     (setq bfepm--cache-directory (expand-file-name "cache" bfepm-dir))
     (unless (file-exists-p bfepm--cache-directory)
       (make-directory bfepm--cache-directory t))
-    
+
     (setq bfepm--profiles-directory (expand-file-name "profiles" bfepm-dir))
     (unless (file-exists-p bfepm--profiles-directory)
       (make-directory bfepm--profiles-directory t))))
@@ -135,9 +135,9 @@ FALLBACK-FORM is executed when framework is not available."
       (if (and (boundp 'bfepm-config-file) (file-exists-p bfepm-config-file))
           (cond
            ;; Prefer minimal config when TOML is not available
-           ((and (featurep 'bfepm-config-minimal) 
-                 (not (and (featurep 'bfepm-config) 
-                          (boundp 'bfepm-config--toml-available) 
+           ((and (featurep 'bfepm-config-minimal)
+                 (not (and (featurep 'bfepm-config)
+                          (boundp 'bfepm-config--toml-available)
                           bfepm-config--toml-available)))
             (let ((config (bfepm-config-create-default))
                   (packages '()))
@@ -159,13 +159,13 @@ FALLBACK-FORM is executed when framework is not available."
                       (setq tag (match-string 1 rest)))
                     (when (string-match "ref\\s-*=\\s-*\"\\([^\"]+\\)\"" rest)
                       (setq ref (match-string 1 rest)))
-                    
+
                     ;; Create git source
                     (let ((git-source (list :url git-url :type "git")))
                       (when branch (setq git-source (plist-put git-source :ref branch)))
                       (when tag (setq git-source (plist-put git-source :ref tag)))
                       (when ref (setq git-source (plist-put git-source :ref ref)))
-                      
+
                       ;; Create package entry
                       (push (make-bfepm-package
                              :name package-name
@@ -173,13 +173,13 @@ FALLBACK-FORM is executed when framework is not available."
                              :source git-source
                              :status 'required)
                             packages)))))
-              
+
               ;; Update config with parsed packages
               (setf (bfepm-config-packages config) packages)
               (setq bfepm--config config)))
            ;; Use full config when TOML is available
-           ((and (featurep 'bfepm-config) 
-                 (boundp 'bfepm-config--toml-available) 
+           ((and (featurep 'bfepm-config)
+                 (boundp 'bfepm-config--toml-available)
                  bfepm-config--toml-available)
             (setq bfepm--config (bfepm-config-load bfepm-config-file)))
            ;; Fall back to minimal config
