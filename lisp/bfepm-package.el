@@ -23,7 +23,7 @@
 ;; Forward declaration for config functions
 (declare-function bfepm-config-get-package "bfepm-config")
 
-;; Forward declarations for optional modules  
+;; Forward declarations for optional modules
 (declare-function bfepm-search "bfepm-search")
 
 ;; Forward declare GSE functions to avoid warnings
@@ -44,7 +44,7 @@
     (if (fboundp 'gse-create-engine)
         (progn
           (setq bfepm-package--search-engine
-                (gse-create-engine 
+                (gse-create-engine
                  :name "bfepm-search"
                  :cache-ttl 300  ; 5 minutes
                  :max-cache-size 1000
@@ -87,7 +87,7 @@
         (downloads (or (plist-get result :downloads) 0))
         (recent (plist-get result :recent))
         (score 0))
-    
+
     ;; Query relevance scoring
     (when (and name query)
       ;; Exact name match gets highest score
@@ -96,19 +96,19 @@
         ;; Partial name match
         (when (string-match-p (regexp-quote (downcase query)) (downcase name))
           (setq score (+ score 500))))
-      
+
       ;; Description relevance
-      (when (and description 
+      (when (and description
                  (string-match-p (regexp-quote (downcase query)) (downcase description)))
         (setq score (+ score 200))))
-    
+
     ;; Popularity scoring (logarithmic to prevent domination)
     (setq score (+ score (floor (log (max 1 downloads) 10))))
-    
+
     ;; Recency bonus
     (when recent
       (setq score (+ score 100)))
-    
+
     score))
 
 ;; Try to load bfepm-config, fall back to minimal if not available
@@ -173,9 +173,9 @@ Calls CALLBACK with (success results error-message) when complete."
                             (progn
                               ;; Check for URL retrieval errors
                               (when (plist-get status :error)
-                                (setq error-msg (format "URL retrieval failed: %s" 
+                                (setq error-msg (format "URL retrieval failed: %s"
                                                        (plist-get status :error))))
-                              
+
                               (unless error-msg
                                 (goto-char (point-min))
                                 ;; Skip HTTP headers
@@ -193,18 +193,18 @@ Calls CALLBACK with (success results error-message) when complete."
                                                     (push (bfepm-package--create-search-result package-name version description archive-url)
                                                           results)))))))
                                       (error
-                                       (setq error-msg (format "Failed to parse archive contents: %s" 
+                                       (setq error-msg (format "Failed to parse archive contents: %s"
                                                               (error-message-string parse-err)))))
                                   (setq error-msg "Invalid HTTP response format"))))
-                          
+
                           ;; Always clean up buffer
                           (when (current-buffer)
                             (kill-buffer (current-buffer))))
-                        
+
                         ;; Call callback with results
                         (if error-msg
                             (funcall callback nil nil error-msg)
-                          (let ((sorted-results (seq-take 
+                          (let ((sorted-results (seq-take
                                                (sort results
                                                      (lambda (a b)
                                                        (> (bfepm-package--calculate-search-score a query)
@@ -262,7 +262,7 @@ WARNING: This blocks Emacs and should only be used for testing/compatibility."
   "Create search result from PACKAGE-NAME, VERSION, DESCRIPTION and ARCHIVE-URL."
   (list :name package-name
         :description (or description "No description available")
-        :version (if (vectorp version) 
+        :version (if (vectorp version)
                      (mapconcat #'number-to-string version ".")
                    (format "%s" version))
         :source (cond ((string-match-p "melpa" archive-url) "melpa")
@@ -408,7 +408,7 @@ CALLBACK is called with (success package-name error-message) when complete."
                                     (progn
                                       (bfepm-package-install package-spec)
                                       (when callback (funcall callback t package-name nil)))
-                                  (error 
+                                  (error
                                    (when callback (funcall callback nil package-name (error-message-string err))))))))
           ;; Not a git package - use ELPA sources
           (let* ((sources (if config
@@ -458,7 +458,7 @@ CALLBACK is called with (success package-name error-message) when complete."
                                     (progn
                                       (bfepm-package-install package-spec)
                                       (when callback (funcall callback t package-name nil)))
-                                  (error 
+                                  (error
                                    (when callback (funcall callback nil package-name (error-message-string err))))))))))))))
 
 (defun bfepm-package--find-package (package config)
@@ -478,7 +478,7 @@ CALLBACK is called with (success package-name error-message) when complete."
               (let ((package-source (bfepm-package-source configured-package)))
                 (when package-source
                   (bfepm-package--find-in-source package-name package-source))))))
-        
+
         ;; Try each source in priority order
         (cl-loop for source in (sort sources (lambda (a b)
                                                (> (bfepm-package--get-source-priority (cdr a))
@@ -538,7 +538,7 @@ CALLBACK is called with (success package-name error-message) when complete."
 CALLBACK is called with (success contents error-message) when complete.
 
 This function is deprecated. Use `bfepm-network-fetch-archive-contents-async'."
-  (bfepm-network-fetch-archive-contents-async 
+  (bfepm-network-fetch-archive-contents-async
    archive-url callback bfepm-package--archive-fetch-delay))
 
 (defun bfepm-package--download-and-install (package package-info)
@@ -649,7 +649,7 @@ CALLBACK is called with (success error-message) when complete."
                  (unless (and (file-exists-p local-file)
                              (> (file-attribute-size (file-attributes local-file)) 0))
                    (error "Downloaded file %s is empty or missing" local-file))
-                 
+
                  ;; Extract/install package with rollback on failure
                  (let ((install-dir (expand-file-name package-name (bfepm-core-get-packages-directory))))
                    (condition-case extract-err
@@ -668,7 +668,7 @@ CALLBACK is called with (success error-message) when complete."
                       (when (file-directory-p install-dir)
                         (bfepm-utils-message "Rolling back failed installation of %s" package-name)
                         (ignore-errors (delete-directory install-dir t)))
-                      (funcall callback nil (format "Failed to install %s: %s" 
+                      (funcall callback nil (format "Failed to install %s: %s"
                                                    package-name (error-message-string extract-err)))))))
              (error
               (funcall callback nil (error-message-string err))))
@@ -709,7 +709,7 @@ CALLBACK is called with (success package-name error-message) when complete."
                  (unless (and (file-exists-p local-file)
                              (> (file-attribute-size (file-attributes local-file)) 0))
                    (error "Downloaded file %s is empty or missing" local-file))
-                 
+
                  ;; Extract/install package with rollback on failure
                  (let ((install-dir (expand-file-name package-name (bfepm-core-get-packages-directory))))
                    (condition-case extract-err
@@ -728,7 +728,7 @@ CALLBACK is called with (success package-name error-message) when complete."
                       (when (file-directory-p install-dir)
                         (bfepm-utils-message "Rolling back failed dependency installation of %s" package-name)
                         (ignore-errors (delete-directory install-dir t)))
-                      (funcall callback nil package-name (format "Failed to install dependency %s: %s" 
+                      (funcall callback nil package-name (format "Failed to install dependency %s: %s"
                                                    package-name (error-message-string extract-err)))))))
              (error
               (funcall callback nil package-name (error-message-string err))))
@@ -742,7 +742,7 @@ CALLBACK is called with (success package-name error-message) when complete."
          (info-list (if (vectorp package-info) (append package-info nil) package-info))
          (source-config (nth 4 info-list)) ; Source config is included in package-info
          (url (bfepm-package--get-source-url source-config))
-         (ref (or (plist-get source-config :ref) 
+         (ref (or (plist-get source-config :ref)
                   (bfepm-package-version package)
                   "latest"))
          (shallow (plist-get source-config :shallow))
@@ -762,24 +762,24 @@ CALLBACK is called with (success package-name error-message) when complete."
         (progn
           ;; Clone the repository
           (bfepm-git-clone url install-dir ref shallow)
-          
+
           ;; Get actual version from git repository
           (let ((version (bfepm-package--get-git-version install-dir ref)))
             ;; Save version information
             (bfepm-package--save-version-info package-name version)
-            
+
             ;; Install dependencies by scanning Package-Requires
             (bfepm-package--install-git-dependencies package-name install-dir)
-            
+
             ;; Verify installation
             (bfepm-package--verify-installation package-name install-dir)
-            
+
             ;; Add to load-path
             (add-to-list 'load-path install-dir)
-            
+
             ;; Invalidate caches after successful installation
             (bfepm-core--invalidate-cache package-name)
-            
+
             (bfepm-utils-message "Successfully installed git package %s (version: %s)" package-name version)))
       (error
        ;; Rollback on failure
@@ -806,8 +806,8 @@ CALLBACK is called with (success package-name error-message) when complete."
                 (condition-case parse-err
                     (let ((deps (read requires-string)))
                       (when (and deps (listp deps))
-                        (bfepm-utils-message "Installing dependencies for git package %s: %s" 
-                                           package-name 
+                        (bfepm-utils-message "Installing dependencies for git package %s: %s"
+                                           package-name
                                            (mapconcat (lambda (dep) (symbol-name (car dep))) deps ", "))
                         (bfepm-package--install-dependencies deps)))
                   (error
@@ -932,7 +932,7 @@ KIND specifies the package type (tar or single file)."
   "Extract TAR-FILE to INSTALL-DIR with improved compression detection."
   (let ((default-directory install-dir))
     (bfepm-utils-message "📦 Extracting package to %s..." install-dir)
-    
+
     ;; Detect compression format and use appropriate tar flags
     (let* ((tar-flags (cond
                        ((or (string-suffix-p ".tar.gz" tar-file)
@@ -942,10 +942,10 @@ KIND specifies the package type (tar or single file)."
                        ((string-suffix-p ".tar.lz" tar-file) "--lzip -xf")
                        (t "-xf")))
            (result (call-process "tar" nil nil nil tar-flags tar-file "--strip-components=1")))
-      
+
       (unless (= result 0)
         (bfepm-utils-error "Failed to extract tar file %s (exit code: %d)" tar-file result))
-      
+
       ;; Verify extraction succeeded
       (let ((extracted-files (directory-files install-dir nil "^[^.]")))
         (unless (> (length extracted-files) 0)
@@ -974,14 +974,14 @@ KIND specifies the package type (tar or single file)."
   (let ((main-file (expand-file-name (format "%s.el" package-name) install-dir))
         (metadata-file (expand-file-name ".bfepm-metadata" install-dir))
         (metadata (list)))
-    
+
     ;; Parse main package file if it exists
     (when (file-exists-p main-file)
       (condition-case err
           (with-temp-buffer
             (insert-file-contents main-file nil 0 4096) ; Read first 4KB for headers
             (goto-char (point-min))
-            
+
             ;; Extract Package-Requires (parse as Lisp data structure)
             (when (re-search-forward "^[[:space:];]*Package-Requires:[[:space:]]*\\(.+\\)$" nil t)
               (condition-case parse-err
@@ -991,12 +991,12 @@ KIND specifies the package type (tar or single file)."
                 (error
                  (bfepm-utils-message "Warning: Failed to parse Package-Requires for %s: %s"
                                     package-name (error-message-string parse-err)))))
-            
+
             ;; Extract Version
             (goto-char (point-min))
             (when (re-search-forward "^[[:space:];]*Version:[[:space:]]*\\(.+\\)$" nil t)
               (setq metadata (cons (cons 'version (string-trim (match-string 1))) metadata)))
-            
+
             ;; Extract Keywords
             (goto-char (point-min))
             (when (re-search-forward "^[[:space:];]*Keywords:[[:space:]]*\\(.+\\)$" nil t)
@@ -1004,7 +1004,7 @@ KIND specifies the package type (tar or single file)."
         (error
          (bfepm-utils-message "Warning: Failed to parse metadata for %s: %s"
                             package-name (error-message-string err)))))
-    
+
     ;; Cache metadata to file for quick access (only if non-empty)
     (when metadata
       (condition-case err
@@ -1013,7 +1013,7 @@ KIND specifies the package type (tar or single file)."
         (error
          (bfepm-utils-message "Warning: Failed to cache metadata for %s: %s"
                             package-name (error-message-string err)))))
-    
+
     metadata))
 
 (defun bfepm-package-remove (package-name)
@@ -1098,7 +1098,7 @@ KIND specifies the package type (tar or single file)."
 
     ;; Parse and cache package metadata
     (bfepm-package--parse-metadata package-name install-dir)
-    
+
     (bfepm-utils-message "Installation verified: %d .el files found in %s"
                         (length el-files) install-dir)))
 

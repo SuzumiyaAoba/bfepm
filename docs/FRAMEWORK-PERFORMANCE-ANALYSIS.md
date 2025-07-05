@@ -14,7 +14,7 @@ This document provides a comprehensive performance analysis of BFEPM's framework
 ## Test Suite Performance Baseline
 
 ### Overall Test Suite Results
-```
+```text
 Total Tests: 63
 Passed: 63 (100%)
 Failed: 0
@@ -52,7 +52,7 @@ Based on test execution, the following framework libraries are detected:
 #### Graceful Degradation Behavior
 When framework libraries are not available, BFEPM automatically falls back to built-in implementations:
 
-```
+```text
 Warning: version-constraint-engine not available, using built-in version handling
 Warning: generic-http-client not available, falling back to url.el
 Warning: generic-search-engine not available, using built-in search
@@ -144,7 +144,7 @@ Enhanced configuration handling:
 ## Real-World Performance Scenarios
 
 ### Scenario 1: Large Package Installation
-```
+```text
 Operation: Install 50 packages with dependencies
 Built-in: 180 seconds (3 minutes)
 Framework: 108 seconds (1.8 minutes) - 40% improvement
@@ -157,7 +157,7 @@ Benefits:
 ```
 
 ### Scenario 2: Package Search Operations
-```
+```text
 Operation: Search for "company" across all sources
 Built-in: 2.3 seconds
 Framework: 0.8 seconds - 65% improvement
@@ -170,7 +170,7 @@ Benefits:
 ```
 
 ### Scenario 3: Version Constraint Resolution
-```
+```text
 Operation: Resolve complex version constraints for 100 packages
 Built-in: 850ms
 Framework: 320ms - 62% improvement
@@ -185,7 +185,7 @@ Benefits:
 ## Framework Integration Health Metrics
 
 ### Code Quality Impact
-```
+```text
 Metric                  Before    After     Change
 Lines of Code          4,500     6,200     +38%
 Cyclomatic Complexity  15        12        -20%
@@ -194,7 +194,7 @@ Documentation          Good      Excellent +40%
 ```
 
 ### API Stability
-```
+```text
 Breaking Changes: 0
 New APIs: 47 framework functions
 Deprecated APIs: 0
@@ -202,7 +202,7 @@ Backward Compatibility: 100%
 ```
 
 ### Error Handling Robustness
-```
+```text
 Error Recovery Rate: 95% (up from 70%)
 Graceful Degradation: 100% success
 Fallback Performance: 98% of baseline

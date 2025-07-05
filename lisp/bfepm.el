@@ -185,8 +185,8 @@ If ASYNC is non-nil, install asynchronously (non-blocking)."
 ;;;###autoload
 (defun bfepm-profile-switch-interactive (profile-name)
   "Switch to profile PROFILE-NAME."
-  (interactive 
-   (list (completing-read "Switch to profile: " 
+  (interactive
+   (list (completing-read "Switch to profile: "
                           (bfepm-profile-list-names)
                           nil t)))
   (bfepm-profile-switch profile-name))
@@ -200,8 +200,8 @@ If ASYNC is non-nil, install asynchronously (non-blocking)."
 ;;;###autoload
 (defun bfepm-profile-remove-interactive (profile-name)
   "Remove profile PROFILE-NAME."
-  (interactive 
-   (list (completing-read "Remove profile: " 
+  (interactive
+   (list (completing-read "Remove profile: "
                           (bfepm-profile-list-names)
                           nil t)))
   (bfepm-profile-remove profile-name))
@@ -210,7 +210,7 @@ If ASYNC is non-nil, install asynchronously (non-blocking)."
 (defun bfepm-profile-copy-interactive (source-profile target-profile)
   "Copy SOURCE-PROFILE to TARGET-PROFILE."
   (interactive
-   (list (completing-read "Copy from profile: " 
+   (list (completing-read "Copy from profile: "
                           (bfepm-profile-list-names) nil t)
          (read-string "Copy to profile: ")))
   (bfepm-profile-copy source-profile target-profile))
